@@ -165,7 +165,7 @@ export default function MapPage() {
       {sheet === 'credits' && (
         <Sheet onClose={() => { setSheet(null); if (q.get('credits')) setQ({}, { replace: true }) }}>
           <h2>Map credits</h2>
-          <p className="mut" style={{ lineHeight: 1.5 }}>Roads and building outlines: © OpenStreetMap contributors (openstreetmap.org/copyright). Place names and positions: Compass.</p>
+          <p className="mut" style={{ lineHeight: 1.5 }}>Roads and building outlines: © Afuwape Temitayo (https://www.linkedin.com/in/afuwapetemitayo/). Place names and positions: Compass.</p>
           <button className="btn line block" onClick={() => { setSheet(null); if (q.get('credits')) setQ({}, { replace: true }) }}>Close</button>
         </Sheet>
       )}
