@@ -22,10 +22,11 @@ export default function Admin() {
           <div style={{ flex: 1 }}><div className="mut" style={{ fontSize: 12 }}>Admin · signed in as {profile.name.split(' ')[0]}</div><h2>Dashboard</h2></div>
         </div>
         <div className="seg" role="tablist">
-          {[['overview', 'Overview'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
+          {[['overview', 'Overview'], ['users', 'Users'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
         </div>
         {tab === 'overview' && <Overview places={places} />}
         {tab === 'reports' && <Reports />}
+        {tab === 'users' && <Users />}
         {tab === 'places' && <PlacesList places={places} onEdit={p => { setEdit(p); setTab('edit') }} />}
         {tab === 'add' && <PlaceForm key="new" place={null} onDone={() => setTab('places')} />}
         {tab === 'edit' && <><button className="btn line" style={{ justifySelf: 'start', minHeight: 40 }} onClick={() => setTab('places')}><Icon n="back" s={18} /> All places</button><PlaceForm key={edit.n} place={edit} onDone={() => setTab('places')} /></>}
@@ -239,6 +240,50 @@ function Reports() {
             <p style={{ lineHeight: 1.45, overflowWrap: 'anywhere' }}>{r.message}</p>
             <div className="mut" style={{ fontSize: 12 }}>{r.who ? (r.who.full_name || '') + ' · ' + (r.who.email || '') : 'Unknown'} · {new Date(r.created_at).toLocaleString()}</div>
             <button className="btn line" style={{ minHeight: 40, justifySelf: 'start', fontSize: 14 }} onClick={() => flip(r)}>{r.status === 'open' ? 'Mark as done' : 'Reopen'}</button>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function Users() {
+  const { toast } = useApp()
+  const [list, setList] = useState(null)
+  const [err, setErr] = useState('')
+  const [q, setQ] = useState('')
+  useEffect(() => { backend.listUsers().then(setList).catch(e => setErr(e.message || 'Could not load users')) }, [])
+  const shown = useMemo(() => {
+    const t = q.trim().toLowerCase()
+    return (list || []).filter(u => !t || [u.name, u.email, u.faculty, u.dept, u.level].some(v => (v || '').toLowerCase().includes(t)))
+  }, [list, q])
+  const day = d => d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not yet'
+  const copy = async text => { try { await navigator.clipboard.writeText(text); toast('Copied') } catch { toast('Could not copy') } }
+  const csv = () => {
+    const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"'
+    const rows = [['Name', 'Email', 'Faculty', 'Department', 'Level', 'Role', 'Joined', 'Last seen'], ...shown.map(u => [u.name, u.email, u.faculty, u.dept, u.level, u.role, u.joined, u.seen || ''])]
+    const blob = new Blob([rows.map(r => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'compass-users.csv'; a.click(); URL.revokeObjectURL(a.href)
+  }
+  return (
+    <>
+      <div className="stats"><div className="card stat"><b>{list ? list.length : 0}</b><span>Registered</span></div><div className="card stat"><b>{list ? list.filter(u => u.seen && Date.now() - new Date(u.seen) < 7 * 864e5).length : 0}</b><span>Active this week</span></div></div>
+      {err && <div className="card" style={{ color: '#C0392B' }}>{err}</div>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input className="inp" style={{ flex: 1 }} placeholder="Search name, email, faculty…" value={q} onChange={e => setQ(e.target.value)} />
+        <button className="btn line" style={{ minHeight: 44 }} onClick={csv} disabled={!shown.length}>Download CSV</button>
+      </div>
+      {list && !shown.length && <div className="card mut">No users found.</div>}
+      <div style={{ display: 'grid', gap: 10 }}>
+        {shown.map(u => (
+          <div className="card" key={u.id} style={{ display: 'grid', gap: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <b>{u.name}</b>
+              {u.role === 'admin' && <span className="pill on">Admin</span>}
+            </div>
+            <button onClick={() => copy(u.email)} style={{ background: 'none', border: 0, padding: 0, font: 'inherit', textAlign: 'left', color: 'var(--blue, #1B3FD6)', overflowWrap: 'anywhere' }}>{u.email}</button>
+            <div className="mut" style={{ fontSize: 13 }}>{[u.faculty, u.dept, u.level && u.level + ' level'].filter(Boolean).join(' · ') || 'Profile not completed'}</div>
+            <div className="mut" style={{ fontSize: 12 }}>Joined {day(u.joined)} · Last seen {day(u.seen)}</div>
           </div>
         ))}
       </div>

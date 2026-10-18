@@ -82,7 +82,12 @@ const sb = {
     if (error) throw error
     return data
   },
-  async setReportStatus(id, status) { const { error } = await supabase.from('reports').update({ status }).eq('id', id); if (error) throw error }
+  async setReportStatus(id, status) { const { error } = await supabase.from('reports').update({ status }).eq('id', id); if (error) throw error },
+  async listUsers() {
+    const { data, error } = await supabase.from('profiles').select('id,full_name,email,faculty,level,role,created_at,last_seen_at,dept:department_id(name)').order('created_at', { ascending: false }).limit(2000)
+    if (error) throw error
+    return data.map(u => ({ id: u.id, name: u.full_name, email: u.email, faculty: u.faculty || '', dept: u.dept ? u.dept.name.replace(/^Department of /, '') : '', level: u.level || '', role: u.role, joined: u.created_at, seen: u.last_seen_at }))
+  }
 }
 
 /* ------------------------------ Test mode (this device only) ------------------------------ */
@@ -123,7 +128,12 @@ const local = {
   async adminStats() { return null },
   async sendReport(_uid, r) { const l = ls.get('reports', []); l.unshift({ id: Date.now(), place_name: r.placeName || null, message: r.message, page: r.page || null, status: 'open', created_at: new Date().toISOString(), who: { full_name: (ls.get('user', {}) || {}).name, email: (ls.get('user', {}) || {}).email } }); ls.set('reports', l) },
   async listReports() { return ls.get('reports', []) },
-  async setReportStatus(id, status) { ls.set('reports', ls.get('reports', []).map(r => r.id === id ? { ...r, status } : r)) }
+  async setReportStatus(id, status) { ls.set('reports', ls.get('reports', []).map(r => r.id === id ? { ...r, status } : r)) },
+  async listUsers() {
+    const u = ls.get('user', null)
+    const me = u ? [{ id: 'local', name: u.name, email: u.email, faculty: u.fac, dept: u.dep, level: u.lv, role: u.role, joined: new Date().toISOString(), seen: new Date().toISOString() }] : []
+    return [...me, { id: 's1', name: 'Adebayo Tolu', email: 'adebayo.tolu@gmail.com', faculty: 'Social Sciences', dept: 'Economics', level: '200', role: 'student', joined: '2026-10-12T10:00:00Z', seen: '2026-10-17T09:00:00Z' }, { id: 's2', name: 'Sample Student', email: 'sample@example.com', faculty: 'Science', dept: 'Statistics', level: '100', role: 'student', joined: '2026-10-14T10:00:00Z', seen: null }]
+  }
 }
 
 export const backend = hasSupabase ? sb : local
