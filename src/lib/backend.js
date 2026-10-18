@@ -16,6 +16,12 @@ const ls = {
 const photoUrl = path => supabase.storage.from('place-photos').getPublicUrl(path).data.publicUrl
 
 /* ------------------------------ Supabase ------------------------------ */
+const DEFAULT_TIPS = [
+  { id: 't1', title: 'Getting to Ago-Iwoye', body: 'From your city, take a bus or car going to Ago-Iwoye. Ask at the park which vehicle is going there, and agree the fare before you get in.', sort_order: 10 },
+  { id: 't2', title: 'Once you are in Ago-Iwoye', body: 'Tell the driver or keke rider you are going to OOU, at School Park (the drop-off point). They will know it.', sort_order: 20 },
+  { id: 't3', title: 'Stay safe', body: 'Keep your phone, money and admission documents close. Do not hand your bags to strangers. If you are lost, ask a student or a security officer.', sort_order: 30 }
+]
+
 const sb = {
   async getSession() { const { data } = await supabase.auth.getSession(); return data.session },
   onAuth(cb) { const { data } = supabase.auth.onAuthStateChange((_e, s) => cb(s)); return () => data.subscription.unsubscribe() },
@@ -83,6 +89,13 @@ const sb = {
     return data
   },
   async setReportStatus(id, status) { const { error } = await supabase.from('reports').update({ status }).eq('id', id); if (error) throw error },
+  async listTips() { const { data, error } = await supabase.from('arrival_tips').select('*').order('sort_order').order('created_at'); if (error) throw error; return data },
+  async saveTip(t) {
+    const row = { title: t.title, body: t.body, sort_order: t.sort_order ?? 100 }
+    const { error } = t.id ? await supabase.from('arrival_tips').update(row).eq('id', t.id) : await supabase.from('arrival_tips').insert(row)
+    if (error) throw error
+  },
+  async deleteTip(id) { const { error } = await supabase.from('arrival_tips').delete().eq('id', id); if (error) throw error },
   async listUsers() {
     const { data, error } = await supabase.from('profiles').select('id,full_name,email,faculty,level,role,created_at,last_seen_at,dept:department_id(name)').order('created_at', { ascending: false }).limit(2000)
     if (error) throw error
@@ -129,6 +142,9 @@ const local = {
   async sendReport(_uid, r) { const l = ls.get('reports', []); l.unshift({ id: Date.now(), place_name: r.placeName || null, message: r.message, page: r.page || null, status: 'open', created_at: new Date().toISOString(), who: { full_name: (ls.get('user', {}) || {}).name, email: (ls.get('user', {}) || {}).email } }); ls.set('reports', l) },
   async listReports() { return ls.get('reports', []) },
   async setReportStatus(id, status) { ls.set('reports', ls.get('reports', []).map(r => r.id === id ? { ...r, status } : r)) },
+  async listTips() { return ls.get('tips', DEFAULT_TIPS) },
+  async saveTip(t) { const l = ls.get('tips', DEFAULT_TIPS); ls.set('tips', t.id ? l.map(x => x.id === t.id ? { ...x, ...t } : x) : [...l, { ...t, id: 't' + Date.now(), sort_order: t.sort_order ?? 100 }]) },
+  async deleteTip(id) { ls.set('tips', ls.get('tips', DEFAULT_TIPS).filter(x => x.id !== id)) },
   async listUsers() {
     const u = ls.get('user', null)
     const me = u ? [{ id: 'local', name: u.name, email: u.email, faculty: u.fac, dept: u.dep, level: u.lv, role: u.role, joined: new Date().toISOString(), seen: new Date().toISOString() }] : []

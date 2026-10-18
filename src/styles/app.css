@@ -152,3 +152,5 @@ h1{font-size:34px}
 .mctl .ib{box-shadow:0 6px 16px rgba(10,27,77,.22);width:44px;height:44px;font-family:inherit;color:var(--ink)}
 .mctl .loc{background:var(--blue);border-color:var(--blue);color:#fff}
 @media (min-width:1000px){.mctl{top:16px}}
+
+.seg{overflow-x:auto;scrollbar-width:none}.seg::-webkit-scrollbar{display:none}.seg button{flex:1 0 auto;padding:10px 12px;white-space:nowrap}

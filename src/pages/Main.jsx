@@ -28,6 +28,10 @@ export function Home() {
           <button className="av" onClick={() => setSheet(true)} aria-label="Account">{initials(u.name)}</button>
         </div>
         <button className="search" onClick={() => nav('/directory')} style={{ textAlign: 'left', color: 'var(--muted)' }}><Icon n="search" /><span>Search any place on campus</span></button>
+        <button className="card" onClick={() => nav('/arrive')} style={{ display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', background: 'var(--sun)', borderColor: 'var(--gold)' }}>
+          <span className="ic" style={{ background: 'var(--gold)', color: '#0A1B4D' }}><Icon n="pin" /></span>
+          <span style={{ flex: 1, minWidth: 0 }}><b style={{ display: 'block' }}>New here or still outside?</b><span className="mut" style={{ fontSize: 13 }}>How to reach the school and get in</span></span>
+        </button>
         {dp ? (
           <div className="hero">
             <span style={{ fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', opacity: .8 }}>My department</span>
@@ -154,6 +158,7 @@ export function Place() {
 const FAQ = [
   ['Where do I collect my ID card?', "Go to your faculty officer or the Dean's office. They will tell you the days and what to bring."],
   ['How do I find my lecture hall?', 'Ask your class rep first, then search the hall name in the Directory and tap Get directions.'],
+  ['I am not at the school yet. How do I get there?', 'Open "Coming to OOU?" from Home. It shows how to get to Ago-Iwoye, which gate or park to ask for, and opens Google Maps for the road, then Compass takes over inside.', true],
   ['Who do I call if I am lost?', 'Call the university support line, then use Map to see where you are.']
 ]
 export function Faq() {
@@ -171,6 +176,7 @@ export function Faq() {
           <div className="faq" key={i}>
             <button onClick={() => setOpen(open === i ? -1 : i)} aria-expanded={open === i}>{f[0]}<span>{open === i ? '−' : '+'}</span></button>
             {open === i && <p>{f[1]}</p>}
+            {open === i && f[2] && <button className="btn gold block" style={{ minHeight: 44, margin: '0 0 10px' }} onClick={() => nav('/arrive')}>Open Coming to OOU</button>}
           </div>
         ))}</div>
         <div className="card"><h3>University contacts</h3><p className="mut" style={{ marginTop: 6, lineHeight: 1.6 }}>+234 913 500 4446<br />+234 913 500 4447<br />enquiry@oouagoiwoye.edu.ng</p></div>

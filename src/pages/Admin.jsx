@@ -22,11 +22,12 @@ export default function Admin() {
           <div style={{ flex: 1 }}><div className="mut" style={{ fontSize: 12 }}>Admin · signed in as {profile.name.split(' ')[0]}</div><h2>Dashboard</h2></div>
         </div>
         <div className="seg" role="tablist">
-          {[['overview', 'Overview'], ['users', 'Users'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
+          {[['overview', 'Overview'], ['users', 'Users'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports'], ['tips', 'Arrival']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
         </div>
         {tab === 'overview' && <Overview places={places} />}
         {tab === 'reports' && <Reports />}
         {tab === 'users' && <Users />}
+        {tab === 'tips' && <Tips />}
         {tab === 'places' && <PlacesList places={places} onEdit={p => { setEdit(p); setTab('edit') }} />}
         {tab === 'add' && <PlaceForm key="new" place={null} onDone={() => setTab('places')} />}
         {tab === 'edit' && <><button className="btn line" style={{ justifySelf: 'start', minHeight: 40 }} onClick={() => setTab('places')}><Icon n="back" s={18} /> All places</button><PlaceForm key={edit.n} place={edit} onDone={() => setTab('places')} /></>}
@@ -135,6 +136,7 @@ function PlaceForm({ place: p, onDone }) {
   const [lng, setLng] = useState(lo0 === '' ? '' : lo0.toFixed(6))
   const [note, setNote] = useState(p ? p.note || '' : '')
   const [hist, setHist] = useState(p ? p.h || '' : '')
+  const [tlabel, setTlabel] = useState(p ? p.t || '' : '')
   const [photo, setPhoto] = useState(null)            // { blob, data }
   const [busy, setBusy] = useState(false)
   const [locating, setLocating] = useState(false)
@@ -184,7 +186,7 @@ function PlaceForm({ place: p, onDone }) {
         const [x, y] = xy(la, lo)
         if (np.x == null || Math.hypot(np.x - x, np.y - y) > .5) { np.x = x; np.y = y; np.v = 1 }
       }
-      np.note = note.trim(); np.h = hist.trim()
+      np.note = note.trim(); np.h = hist.trim(); if (tlabel.trim()) np.t = tlabel.trim()
       await backend.savePlace(np, photo && photo.blob, photo && photo.data)
       await reloadPlaces()
       toast('Saved. ' + np.n + (np.x != null ? ' is live' : ' needs a location'))
@@ -198,6 +200,7 @@ function PlaceForm({ place: p, onDone }) {
       <h3>{p ? 'Edit place' : 'Add a place'}</h3>
       <div className="field"><label htmlFor="p-name">Name</label><input className="inp" id="p-name" value={name} onChange={e => setName(e.target.value)} disabled={!!p} placeholder="e.g. Faculty of Law" /></div>
       {!p && <div className="field"><label htmlFor="p-cat">Type</label><select className="inp" id="p-cat" value={cat} onChange={e => setCat(e.target.value)}>{CATS.slice(1).map(c => <option key={c}>{c}</option>)}</select></div>}
+      <div className="field"><label htmlFor="p-tl">Label (optional)</label><input className="inp" id="p-tl" value={tlabel} onChange={e => setTlabel(e.target.value)} placeholder="e.g. Main gate, Bus stop, Drop-off point" /><span className="mut" style={{ fontSize: 12 }}>Places labelled gate, park, drop-off or bus stop appear under Get into the school in Coming to OOU.</span></div>
       <div className="row2">
         <div className="field"><label htmlFor="p-lat">Latitude</label><input className="inp" id="p-lat" inputMode="decimal" value={lat} onChange={e => setLat(e.target.value)} placeholder="6.926624" /></div>
         <div className="field"><label htmlFor="p-lng">Longitude</label><input className="inp" id="p-lng" inputMode="decimal" value={lng} onChange={e => setLng(e.target.value)} placeholder="3.868849" /></div>
@@ -286,6 +289,45 @@ function Users() {
             <button onClick={() => copy(u.email)} style={{ background: 'none', border: 0, padding: 0, font: 'inherit', textAlign: 'left', color: 'var(--blue, #1B3FD6)', overflowWrap: 'anywhere' }}>{u.email}</button>
             <div className="mut" style={{ fontSize: 13 }}>{[u.faculty, u.dept, u.level && u.level + ' level'].filter(Boolean).join(' · ') || 'Profile not completed'}</div>
             <div className="mut" style={{ fontSize: 12 }}>Joined {day(u.joined)} · Last seen {day(u.seen)}</div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+function Tips() {
+  const { toast } = useApp()
+  const [list, setList] = useState(null)
+  const [edit, setEdit] = useState(null)       // null | {id?, title, body, sort_order}
+  const load = () => backend.listTips().then(setList).catch(e => toast(e.message || 'Could not load. Did you run arrival.sql?'))
+  useEffect(() => { load() }, [])   // eslint-disable-line
+  const save = async () => {
+    if (!edit.title.trim() || !edit.body.trim()) return toast('Add a title and some text')
+    try { await backend.saveTip({ ...edit, title: edit.title.trim(), body: edit.body.trim() }); setEdit(null); toast('Saved'); load() } catch (e) { toast(e.message || 'Could not save') }
+  }
+  const del = async t => { if (!window.confirm('Delete "' + t.title + '"?')) return; try { await backend.deleteTip(t.id); load() } catch (e) { toast(e.message || 'Could not delete') } }
+  return (
+    <>
+      <p className="mut" style={{ lineHeight: 1.5 }}>This is Step 1 of Coming to OOU. Write it for someone who has never been to Ago-Iwoye: which park, which bus, what to tell the driver, roughly what it costs. To add gates and drop-off points, add a place and give it a label like Main gate.</p>
+      {edit ? (
+        <div className="card" style={{ display: 'grid', gap: 10 }}>
+          <div className="field"><label htmlFor="t-title">Title</label><input className="inp" id="t-title" value={edit.title} onChange={e => setEdit({ ...edit, title: e.target.value })} placeholder="e.g. From Lagos (Ikorodu / Ojota)" /></div>
+          <div className="field"><label htmlFor="t-body">Details</label><textarea className="inp" id="t-body" style={{ minHeight: 120, padding: 12, lineHeight: 1.45 }} value={edit.body} onChange={e => setEdit({ ...edit, body: e.target.value })} /></div>
+          <div className="field"><label htmlFor="t-ord">Order (small numbers first)</label><input className="inp" id="t-ord" inputMode="numeric" value={edit.sort_order} onChange={e => setEdit({ ...edit, sort_order: parseInt(e.target.value) || 0 })} /></div>
+          <button className="btn gold block" onClick={save}>Save</button>
+          <button className="btn line block" onClick={() => setEdit(null)}>Cancel</button>
+        </div>
+      ) : <button className="btn blue block" onClick={() => setEdit({ title: '', body: '', sort_order: ((list || []).length + 1) * 10 })}>Add a tip</button>}
+      <div style={{ display: 'grid', gap: 10 }}>
+        {(list || []).map(t => (
+          <div className="card" key={t.id} style={{ display: 'grid', gap: 6 }}>
+            <b>{t.title}</b>
+            <p className="mut" style={{ lineHeight: 1.45, overflowWrap: 'anywhere' }}>{t.body}</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn line" style={{ minHeight: 40, fontSize: 14 }} onClick={() => setEdit({ ...t })}>Edit</button>
+              <button className="btn line" style={{ minHeight: 40, fontSize: 14, color: '#C0392B' }} onClick={() => del(t)}>Delete</button>
+            </div>
           </div>
         ))}
       </div>

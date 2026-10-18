@@ -1,3 +1,4 @@
+import Arrive from './pages/Arrive'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './state'
 import Icon from './components/Icon'
@@ -29,7 +30,7 @@ function Tabs() {
 function Layout() {
   const { pathname } = useLocation()
   const { toastMsg, hasSupabase } = useApp()
-  const showTabs = ['/', '/directory', '/faq', '/map'].includes(pathname) || pathname.startsWith('/place/')
+  const showTabs = ['/', '/directory', '/faq', '/map', '/arrive'].includes(pathname) || pathname.startsWith('/place/')
   return (
     <div id="app" className={hasSupabase ? undefined : 'has-banner'}>
       {!hasSupabase && <div className="banner" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60 }}>Test mode: accounts and edits stay on this device only</div>}
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/place/:slug" element={<Place />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/faq" element={<Faq />} />
+          <Route path="/arrive" element={<Arrive />} />
         </Route>
         <Route element={<RequireAuth admin />}>
           <Route path="/admin" element={<Admin />} />
