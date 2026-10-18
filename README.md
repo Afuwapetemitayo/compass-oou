@@ -53,6 +53,12 @@ git push -u origin main
 ### 5. Keep Supabase awake (free plan pauses after about a week of no use)
 In the GitHub repo: Settings > Secrets and variables > Actions > add `SUPABASE_URL` and `SUPABASE_ANON_KEY`. The workflow in `.github/workflows/keepalive.yml` then pings it twice a week.
 
+## Reports and capturing places (added in update 1)
+- Run `supabase/reports.sql` once in the SQL Editor. This adds the **Report a problem** inbox.
+- Students: Home > initials > **Report a problem**, or the link at the bottom of any place page.
+- Admin > **Reports**: see the messages, mark them done.
+- Admin > Places > a place that **Needs location** > stand at the building > **Use my current location**. Wait for "accurate to about X m" (aim for under 10 m, in the open), then **Save place**.
+
 ## Test checklist before you share the link
 - [ ] Register with a second email, receive the 6-digit code, land on Home with My department filled in
 - [ ] Sign out, then Sign in again with the code

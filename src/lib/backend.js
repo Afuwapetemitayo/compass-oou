@@ -72,7 +72,17 @@ const sb = {
     else await supabase.from('user_pins').delete().eq('user_id', uid).eq('place_id', placeId)
   },
   async logEvent(uid, ev) { if (uid) await supabase.from('events').insert({ user_id: uid, ...ev }) },
-  async adminStats(days) { const { data, error } = await supabase.rpc('admin_stats', { days }); if (error) throw error; return data }
+  async adminStats(days) { const { data, error } = await supabase.rpc('admin_stats', { days }); if (error) throw error; return data },
+  async sendReport(uid, r) {
+    const { error } = await supabase.from('reports').insert({ user_id: uid, place_id: r.placeId || null, place_name: r.placeName || null, message: r.message, page: r.page || null })
+    if (error) throw error
+  },
+  async listReports() {
+    const { data, error } = await supabase.from('reports').select('*, who:profiles(full_name,email)').order('status', { ascending: true }).order('created_at', { ascending: false }).limit(200)
+    if (error) throw error
+    return data
+  },
+  async setReportStatus(id, status) { const { error } = await supabase.from('reports').update({ status }).eq('id', id); if (error) throw error }
 }
 
 /* ------------------------------ Test mode (this device only) ------------------------------ */
@@ -110,7 +120,10 @@ const local = {
   async listPins() { return ls.get('pins', []) },
   async setPin(_u, name, on) { const pn = ls.get('pins', []).filter(n => n !== name); if (on) pn.unshift(name); ls.set('pins', pn) },
   async logEvent() {},
-  async adminStats() { return null }
+  async adminStats() { return null },
+  async sendReport(_uid, r) { const l = ls.get('reports', []); l.unshift({ id: Date.now(), place_name: r.placeName || null, message: r.message, page: r.page || null, status: 'open', created_at: new Date().toISOString(), who: { full_name: (ls.get('user', {}) || {}).name, email: (ls.get('user', {}) || {}).email } }); ls.set('reports', l) },
+  async listReports() { return ls.get('reports', []) },
+  async setReportStatus(id, status) { ls.set('reports', ls.get('reports', []).map(r => r.id === id ? { ...r, status } : r)) }
 }
 
 export const backend = hasSupabase ? sb : local

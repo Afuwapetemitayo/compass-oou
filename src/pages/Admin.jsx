@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state'
 import { backend, hasSupabase } from '../lib/backend'
@@ -22,9 +22,10 @@ export default function Admin() {
           <div style={{ flex: 1 }}><div className="mut" style={{ fontSize: 12 }}>Admin · signed in as {profile.name.split(' ')[0]}</div><h2>Dashboard</h2></div>
         </div>
         <div className="seg" role="tablist">
-          {[['overview', 'Overview'], ['places', 'Places'], ['add', 'Add place']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
+          {[['overview', 'Overview'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
         </div>
         {tab === 'overview' && <Overview places={places} />}
+        {tab === 'reports' && <Reports />}
         {tab === 'places' && <PlacesList places={places} onEdit={p => { setEdit(p); setTab('edit') }} />}
         {tab === 'add' && <PlaceForm key="new" place={null} onDone={() => setTab('places')} />}
         {tab === 'edit' && <><button className="btn line" style={{ justifySelf: 'start', minHeight: 40 }} onClick={() => setTab('places')}><Icon n="back" s={18} /> All places</button><PlaceForm key={edit.n} place={edit} onDone={() => setTab('places')} /></>}
@@ -134,7 +135,35 @@ function PlaceForm({ place: p, onDone }) {
   const [note, setNote] = useState(p ? p.note || '' : '')
   const [photo, setPhoto] = useState(null)            // { blob, data }
   const [busy, setBusy] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [acc, setAcc] = useState(null)
+  const watch = useRef({ id: null, t: null })
+  useEffect(() => () => stopLocate(), [])   // eslint-disable-line
   const preview = photo ? photo.data : (p && p.photo)
+
+  function stopLocate() {
+    if (watch.current.id != null && navigator.geolocation) navigator.geolocation.clearWatch(watch.current.id)
+    clearTimeout(watch.current.t); watch.current = { id: null, t: null }; setLocating(false)
+  }
+  // Stand at the building and tap: waits a few seconds for the most accurate reading.
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return toast('This phone cannot share its location')
+    stopLocate(); setLocating(true); setAcc(null)
+    let best = null
+    const finish = () => {
+      stopLocate()
+      if (!best) toast('Could not get your location. Allow location for this site and try again.')
+      else if (!inOOUBounds(best.coords.latitude, best.coords.longitude)) toast('You are not at OOU, so this location was not used')
+    }
+    watch.current.id = navigator.geolocation.watchPosition(p => {
+      if (!inOOUBounds(p.coords.latitude, p.coords.longitude)) { best = best || p; return }
+      if (!best || !inOOUBounds(best.coords.latitude, best.coords.longitude) || p.coords.accuracy < best.coords.accuracy) {
+        best = p; setLat(p.coords.latitude.toFixed(6)); setLng(p.coords.longitude.toFixed(6)); setAcc(Math.round(p.coords.accuracy))
+      }
+      if (p.coords.accuracy <= 6) finish()
+    }, () => finish(), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
+    watch.current.t = setTimeout(finish, 12000)
+  }
 
   const pick = async e => { const f = e.target.files[0]; if (!f) return; try { setPhoto(await resizePhoto(f)) } catch { toast('Could not read that photo') } }
 
@@ -171,6 +200,8 @@ function PlaceForm({ place: p, onDone }) {
         <div className="field"><label htmlFor="p-lat">Latitude</label><input className="inp" id="p-lat" inputMode="decimal" value={lat} onChange={e => setLat(e.target.value)} placeholder="6.926624" /></div>
         <div className="field"><label htmlFor="p-lng">Longitude</label><input className="inp" id="p-lng" inputMode="decimal" value={lng} onChange={e => setLng(e.target.value)} placeholder="3.868849" /></div>
       </div>
+      <button className="btn line block" style={{ minHeight: 48 }} onClick={useMyLocation} disabled={locating}><Icon n="pin" s={18} /> {locating ? 'Getting your position…' : 'Use my current location'}</button>
+      {acc != null && <p className="demo" style={{ textAlign: 'left', marginTop: -4, color: acc > 20 ? '#7A5200' : 'var(--mintInk)' }}>{acc > 20 ? `Weak signal (±${acc} m). Move to open sky and tap again.` : `Position taken, accurate to about ${acc} m.`}</p>}
       <div className="field"><label htmlFor="p-note">Good to know</label><textarea className="inp" id="p-note" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Second floor, turn left" /></div>
       <div className="field"><label>Building photo</label>
         <div className="photo" style={{ aspectRatio: '16/9' }}>{preview ? <img src={preview} alt="Preview" /> : <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}><Icon n="cam" /><span>No photo yet</span></div>}</div>
@@ -180,5 +211,37 @@ function PlaceForm({ place: p, onDone }) {
       <button className="btn gold block" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save place'}</button>
       <p className="demo">Saving makes the place live right away. No review step.</p>
     </div>
+  )
+}
+
+function Reports() {
+  const { toast } = useApp()
+  const [list, setList] = useState(null)
+  const [err, setErr] = useState('')
+  const load = () => backend.listReports().then(setList).catch(e => setErr(e.message || 'Could not load reports. Did you run reports.sql?'))
+  useEffect(() => { load() }, [])
+  const flip = async r => {
+    try { await backend.setReportStatus(r.id, r.status === 'open' ? 'done' : 'open'); load() } catch (e) { toast(e.message || 'Could not update') }
+  }
+  const open = list ? list.filter(r => r.status === 'open').length : 0
+  return (
+    <>
+      <div className="stats"><div className="card stat"><b>{open}</b><span>Open reports</span></div><div className="card stat"><b>{list ? list.length : 0}</b><span>All reports</span></div></div>
+      {err && <div className="card" style={{ color: '#C0392B' }}>{err}</div>}
+      {list && !list.length && <div className="card mut">No reports yet.</div>}
+      <div style={{ display: 'grid', gap: 10 }}>
+        {(list || []).map(r => (
+          <div className="card" key={r.id} style={{ display: 'grid', gap: 6, opacity: r.status === 'done' ? .6 : 1 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+              <b>{r.place_name || 'General'}</b>
+              <span className={'pill ' + (r.status === 'open' ? 'off' : 'on')}>{r.status === 'open' ? 'Open' : 'Done'}</span>
+            </div>
+            <p style={{ lineHeight: 1.45, overflowWrap: 'anywhere' }}>{r.message}</p>
+            <div className="mut" style={{ fontSize: 12 }}>{r.who ? (r.who.full_name || '') + ' · ' + (r.who.email || '') : 'Unknown'} · {new Date(r.created_at).toLocaleString()}</div>
+            <button className="btn line" style={{ minHeight: 40, justifySelf: 'start', fontSize: 14 }} onClick={() => flip(r)}>{r.status === 'open' ? 'Mark as done' : 'Reopen'}</button>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }

@@ -5,6 +5,7 @@ import { CATS, sub, slugify } from '../lib/places'
 import { FACS } from '../lib/places'
 import Icon, { catIcon } from '../components/Icon'
 import { Badge, PlaceRow, View, Sheet, initials } from '../components/ui'
+import ReportSheet from '../components/ReportSheet'
 
 export const placePath = p => '/place/' + slugify(p.n)
 const mapPath = p => '/map?to=' + slugify(p.n)
@@ -14,6 +15,7 @@ export function Home() {
   const nav = useNavigate()
   const { profile: u, places, pins, signOut, isAdmin, hasSupabase } = useApp()
   const [sheet, setSheet] = useState(false)
+  const [report, setReport] = useState(false)
   const dp = places.find(p => p.n === 'Department of ' + u.dep)
   const pop = ['Motion Ground', 'School Park', 'Senate Building', 'University Library', 'Faculty of Science', 'Office of the University Registrar'].map(n => places.find(p => p.n === n)).filter(Boolean)
   const cats = [['Faculties', 'build'], ['Departments', 'build'], ['Halls', 'build'], ['Offices', 'build'], ['Library', 'build'], ['Facilities', 'pin']]
@@ -51,10 +53,12 @@ export function Home() {
           </div>
           <button className="btn line block" onClick={() => nav('/signup?edit=1')}>Edit my details</button>
           {isAdmin && <button className="btn line block" onClick={() => nav('/admin')}>Admin dashboard{hasSupabase ? '' : ' (test)'}</button>}
+          <button className="btn line block" onClick={() => { setSheet(false); setReport(true) }}>Report a problem</button>
           <button className="btn line block" onClick={() => { setSheet(false); nav('/map?credits=1') }}>About and map credits</button>
           <button className="btn block" style={{ background: 'none', color: '#C0392B' }} onClick={() => signOut().then(() => nav('/welcome', { replace: true }))}>Sign out</button>
         </Sheet>
       )}
+      {report && <ReportSheet onClose={() => setReport(false)} />}
     </View>
   )
 }
@@ -107,6 +111,7 @@ export function Place() {
   const nav = useNavigate()
   const { slug } = useParams()
   const { bySlug, pins, togglePin, log } = useApp()
+  const [report, setReport] = useState(false)
   const p = bySlug(slug)
   useEffect(() => { if (p) log({ type: 'place_view' }, p) /* eslint-disable-next-line */ }, [slug])
   if (!p) return <View><div className="pad"><div className="top" style={{ padding: 0 }}><button className="ib" onClick={() => nav(-1)} aria-label="Back"><Icon n="back" /></button></div><h1>Place not found</h1><button className="btn blue block" onClick={() => nav('/directory')}>Open the Directory</button></div></View>
@@ -132,7 +137,9 @@ export function Place() {
         {p.v === 2 && <div className="card" style={{ background: 'var(--tint)' }}><b>Not yet checked on site</b><p className="mut" style={{ marginTop: 4 }}>We have not checked this position on site yet. It may be a few metres off.</p></div>}
         <div className="card"><h3>Getting there</h3><ol className="steps" style={{ marginTop: 10 }}><li><i>1</i><span>Tap Get directions and choose where you are, or use your location.</span></li><li><i>2</i><span>Follow the gold path. The arrow shows the way.</span></li><li><i>3</i><span>Pick Walk, Keke Napep or Car to see the minutes.</span></li></ol></div>
         {p.note && <div className="card"><b>Good to know</b><p className="mut" style={{ marginTop: 4 }}>{p.note}</p></div>}
+        <button className="btn block" style={{ background: 'none', color: 'var(--muted)', fontWeight: 600, fontSize: 14, minHeight: 44 }} onClick={() => setReport(true)}>Wrong or missing info? Report a problem</button>
       </div>
+      {report && <ReportSheet place={p} onClose={() => setReport(false)} />}
     </View>
   )
 }
