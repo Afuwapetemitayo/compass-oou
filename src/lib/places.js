@@ -29,7 +29,7 @@ export function fromRows(rows, photoUrl) {
     return {
       id: r.id, slug: r.slug, n: r.name, c: r.category, t: r.type_label || r.category.replace(/ies$/, 'y').replace(/s$/, ''),
       f: r.faculty || '', a: (r.aliases || []).join(', '), k: 0, x, y, lat: r.lat, lng: r.lng,
-      v: r.lat == null ? 0 : (r.verified ? 1 : 2), note: r.note || '', photo: r.photo_path ? photoUrl(r.photo_path) : null
+      v: r.lat == null ? 0 : (r.verified ? 1 : 2), note: r.note || '', h: r.history || '', photo: r.photo_path ? photoUrl(r.photo_path) : null
     }
   }))
 }
@@ -39,7 +39,7 @@ export function toRow(p) {
   return {
     slug: p.slug || slugify(p.n), name: p.n, category: p.c, type_label: p.t || null,
     faculty: p.f || null, aliases: p.a ? p.a.split(',').map(s => s.trim()).filter(Boolean) : [],
-    note: p.note || null, lat, lng,
+    note: p.note || null, history: p.h || null, lat, lng,
     location_source: lat == null ? null : (p.v === 1 ? 'gps' : 'osm'), verified: p.v === 1
   }
 }

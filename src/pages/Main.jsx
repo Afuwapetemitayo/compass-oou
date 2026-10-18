@@ -136,6 +136,12 @@ export function Place() {
         ) : <div className="card"><b>Location coming soon</b><p className="mut" style={{ marginTop: 4 }}>We have not captured this place on site yet. You can still ask at the faculty office.</p></div>}
         {p.v === 2 && <div className="card" style={{ background: 'var(--tint)' }}><b>Not yet checked on site</b><p className="mut" style={{ marginTop: 4 }}>We have not checked this position on site yet. It may be a few metres off.</p></div>}
         <div className="card"><h3>Getting there</h3><ol className="steps" style={{ marginTop: 10 }}><li><i>1</i><span>Tap Get directions and choose where you are, or use your location.</span></li><li><i>2</i><span>Follow the gold path. The arrow shows the way.</span></li><li><i>3</i><span>Pick Walk, Keke Napep or Car to see the minutes.</span></li></ol></div>
+        <div className="card" style={{ display: 'grid', gap: 8 }}>
+          <h3>About and history</h3>
+          {p.h ? p.h.split(/\n\s*\n/).map((para, i) => <p key={i} style={{ lineHeight: 1.55, overflowWrap: 'anywhere' }}>{para}</p>)
+            : <p className="mut" style={{ lineHeight: 1.5 }}>The story of this place has not been added yet. Do you know when it was built or why it is called this? Tell us and we will add it.</p>}
+          {!p.h && <button className="btn line" style={{ minHeight: 44, fontSize: 14, justifySelf: 'start' }} onClick={() => setReport(true)}>Share what you know</button>}
+        </div>
         {p.note && <div className="card"><b>Good to know</b><p className="mut" style={{ marginTop: 4 }}>{p.note}</p></div>}
         <button className="btn block" style={{ background: 'none', color: 'var(--muted)', fontWeight: 600, fontSize: 14, minHeight: 44 }} onClick={() => setReport(true)}>Wrong or missing info? Report a problem</button>
       </div>

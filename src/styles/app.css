@@ -146,3 +146,9 @@ h1{font-size:34px}
 @media (min-width:1000px){#app.has-banner{padding-top:26px}}
 .toast.top{bottom:auto;top:150px}
 @media (min-width:1000px){.toast.top{top:auto;bottom:40px;left:calc(50% + 116px)}}
+
+#map{touch-action:none;cursor:grab}
+.mctl{position:absolute;right:12px;top:150px;display:grid;gap:8px;z-index:6}
+.mctl .ib{box-shadow:0 6px 16px rgba(10,27,77,.22);width:44px;height:44px;font-family:inherit;color:var(--ink)}
+.mctl .loc{background:var(--blue);border-color:var(--blue);color:#fff}
+@media (min-width:1000px){.mctl{top:16px}}

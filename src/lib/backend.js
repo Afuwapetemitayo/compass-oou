@@ -113,11 +113,11 @@ const local = {
   },
   async savePlace(p, photoBlob, photoData) {
     const edits = ls.get('edits', {})
-    edits[p.n] = { x: p.x, y: p.y, v: p.v, note: p.note }
+    edits[p.n] = { x: p.x, y: p.y, v: p.v, note: p.note, h: p.h }
     ls.set('edits', edits)
     if (!p.id && !seedPlaces().some(s => s.n === p.n)) {
       const extra = ls.get('extra', []).filter(e => e.n !== p.n)
-      extra.push({ n: p.n, c: p.c, t: p.t, f: '', a: '', k: 0, x: p.x, y: p.y, v: p.v, note: p.note })
+      extra.push({ n: p.n, c: p.c, t: p.t, f: '', a: '', k: 0, x: p.x, y: p.y, v: p.v, note: p.note, h: p.h })
       ls.set('extra', extra)
     }
     if (photoData) { const ph = ls.get('photos', {}); ph[p.n] = photoData; ls.set('photos', ph) }

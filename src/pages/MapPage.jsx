@@ -30,6 +30,9 @@ export default function MapPage() {
   const watchRef = useRef(null)
   const modeRef = useRef(mode); modeRef.current = mode
   useEffect(() => { asked.current = true }, [asked])
+  const trackRef = useRef(null)        // continuous "you are here" watch
+  const wantCenter = useRef(false)     // centre the map on the next fix
+  const lastCell = useRef('')
 
   const testStart = useMemo(() => places.find(p => p.n === 'School Park'), [places])
   const myLoc = () => gps.current ? { n: 'My location', x: gps.current.x, y: gps.current.y, s: snap(gps.current), v: 1 } : testStart
@@ -41,11 +44,45 @@ export default function MapPage() {
   useEffect(() => {
     const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { setTo(i) } })
     eng.current = e
-    return () => { stopWatch(); e.destroy(); eng.current = null }
+    return () => { stopWatch(); stopTrack(); e.destroy(); eng.current = null }
     // eslint-disable-next-line
   }, [])
   useEffect(() => { if (eng.current && places.length) { eng.current.build(places); redraw() } /* eslint-disable-next-line */ }, [places])
 
+  const stopTrack = () => { if (trackRef.current != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(trackRef.current) } catch { /* ignore */ } } trackRef.current = null }
+  const startTrack = () => {
+    if (trackRef.current != null || !navigator.geolocation) return
+    try {
+      trackRef.current = navigator.geolocation.watchPosition(pos => {
+        const la = pos.coords.latitude, lo = pos.coords.longitude, e = eng.current
+        if (!e) return
+        if (!onCampus(la, lo)) {
+          gps.current = null; e.setMe(null)
+          if (wantCenter.current) { wantCenter.current = false; toast('You are not at OOU right now, so there is no dot on the map') }
+          return
+        }
+        const q2 = xy(la, lo), pt = { x: q2[0], y: q2[1] }
+        gps.current = pt
+        e.setMe(pt, pos.coords.accuracy, pos.coords.speed > .6 ? pos.coords.heading : null)
+        if (wantCenter.current) { wantCenter.current = false; e.centerOn(pt, .22) }
+        const cell = Math.round(pt.x / 20) + ',' + Math.round(pt.y / 20)
+        if (cell !== lastCell.current) { lastCell.current = cell; force(n => n + 1) }
+      }, err => { trackRef.current = null; if (wantCenter.current) { wantCenter.current = false; toast(err && err.code === 1 ? 'Location is blocked. Allow it in your browser settings' : 'Could not find you yet. Try again outside') } }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 })
+    } catch { /* ignore */ }
+  }
+  const locate = () => {
+    if (navState) return
+    wantCenter.current = true
+    if (trackRef.current == null) { startTrack(); return }
+    if (gps.current && eng.current) { wantCenter.current = false; eng.current.centerOn(gps.current, .22) }
+    else toast('Still finding you. Stay outside with a clear sky')
+  }
+  // if the person already allowed location before, show the dot without asking again
+  useEffect(() => {
+    if (!navigator.permissions || !navigator.permissions.query) return
+    navigator.permissions.query({ name: 'geolocation' }).then(r => { if (r.state === 'granted') startTrack() }).catch(() => {})
+    // eslint-disable-next-line
+  }, [])
   const stopWatch = () => { if (watchRef.current != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(watchRef.current) } catch { /* ignore */ } } watchRef.current = null }
   const stopNav = useCallback(() => { stopWatch(); if (eng.current) eng.current.stopNav(); setNav(null); setRemain(null) }, [])
 
@@ -57,13 +94,18 @@ export default function MapPage() {
     curRef.current = route(origin, dest)
     e.showRoute(curRef.current, origin, dest)
   }
-  useEffect(() => { redraw(); if (hasRoute && dest.id !== undefined) log({ type: 'directions_preview' }, dest) /* eslint-disable-next-line */ }, [to, from, gps.current, places, testStart])
+  useEffect(() => { redraw(); if (hasRoute && dest.id !== undefined) log({ type: 'directions_preview' }, dest) /* eslint-disable-next-line */ }, [to, from, places, testStart])
+  // the start of the route follows you, but only when you have moved a fair bit, so the map does not jump around
+  const gpsKey = gps.current ? Math.round(gps.current.x / 20) + ',' + Math.round(gps.current.y / 20) : ''
+  useEffect(() => { if (from == null && hasRoute && !navState) redraw() /* eslint-disable-next-line */ }, [gpsKey])
+  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showLabels(!hasRoute && !navState) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
   useEffect(() => { if (navState) stopNav() /* eslint-disable-next-line */ }, [to, from])
 
   const lenNow = remain != null ? remain : (curRef.current ? curRef.current.len : 0)
 
   const allow = () => {
     setSheet(null)
+    wantCenter.current = true; startTrack()
     askLocation(pos => {
       if (pos && okFix(pos)) toast('Location is on')
       else if (pos) toast('You are not on campus, using School Park as the test start')
@@ -75,6 +117,7 @@ export default function MapPage() {
 
   const start = () => {
     if (!curRef.current) return
+    stopTrack()
     askLocation(pos => {
       const real = !!(pos && okFix(pos))
       if (!real) { gps.current = null; toast(pos ? 'You are not on campus, so this is a test walk' : 'Location is off here, so this is a test walk') }
@@ -103,7 +146,7 @@ export default function MapPage() {
       }
     })
   }
-  const end = () => { stopNav(); redraw() }
+  const end = () => { stopNav(); redraw(); if (gps.current) startTrack() }
   useEffect(() => { if (!navState && eng.current && eng.current.gRoute) redraw() /* eslint-disable-next-line */ }, [navState])
 
   const opt = sel => located.map(p => <option key={p.i} value={p.i}>{p.n}{p.v === 2 ? ' (unverified)' : ''}</option>)
@@ -112,6 +155,13 @@ export default function MapPage() {
   return (
     <div id="mapbox" style={{ display: 'block' }}>
       <svg id="map" ref={svgRef} role="img" aria-label="Campus map" />
+      {!(navState) && (
+        <div className="mctl">
+          <button className="ib" onClick={() => eng.current && eng.current.zoomStep(.6)} aria-label="Zoom in"><b style={{ fontSize: 22, lineHeight: 1 }}>+</b></button>
+          <button className="ib" onClick={() => eng.current && eng.current.zoomStep(1 / .6)} aria-label="Zoom out"><b style={{ fontSize: 22, lineHeight: 1 }}>−</b></button>
+          <button className="ib loc" onClick={locate} aria-label="Show where I am"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg></button>
+        </div>
+      )}
       <div id="mapui">
         {!navState && (
           <div className="mtop">
@@ -147,7 +197,7 @@ export default function MapPage() {
                 {!navState && (dest.v === 2 || origin.v === 2) && <p className="demo" style={{ textAlign: 'left' }}>One end is not checked on site yet, so the path may be a little off.</p>}
               </>
             ) : (
-              <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a dot or choose a place'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Gold dots are places we have not checked on site yet.</p></div>
+              <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a dot or choose a place'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Drag to move, pinch to zoom. Blue buildings are places you can tap. Gold dots are not checked on site yet.</p></div>
             )}
           </div>
         )}
@@ -165,7 +215,7 @@ export default function MapPage() {
       {sheet === 'credits' && (
         <Sheet onClose={() => { setSheet(null); if (q.get('credits')) setQ({}, { replace: true }) }}>
           <h2>Map credits</h2>
-          <p className="mut" style={{ lineHeight: 1.5 }}>Roads and building outlines: © Afuwape Temitayo (https://www.linkedin.com/in/afuwapetemitayo/). Place names and positions: Compass.</p>
+          <p className="mut" style={{ lineHeight: 1.5 }}>Roads and building outlines: © OpenStreetMap contributors (openstreetmap.org/copyright). Place names and positions: Compass.</p>
           <button className="btn line block" onClick={() => { setSheet(null); if (q.get('credits')) setQ({}, { replace: true }) }}>Close</button>
         </Sheet>
       )}

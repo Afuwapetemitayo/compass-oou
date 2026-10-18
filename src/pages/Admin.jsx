@@ -134,6 +134,7 @@ function PlaceForm({ place: p, onDone }) {
   const [lat, setLat] = useState(la0 === '' ? '' : la0.toFixed(6))
   const [lng, setLng] = useState(lo0 === '' ? '' : lo0.toFixed(6))
   const [note, setNote] = useState(p ? p.note || '' : '')
+  const [hist, setHist] = useState(p ? p.h || '' : '')
   const [photo, setPhoto] = useState(null)            // { blob, data }
   const [busy, setBusy] = useState(false)
   const [locating, setLocating] = useState(false)
@@ -183,7 +184,7 @@ function PlaceForm({ place: p, onDone }) {
         const [x, y] = xy(la, lo)
         if (np.x == null || Math.hypot(np.x - x, np.y - y) > .5) { np.x = x; np.y = y; np.v = 1 }
       }
-      np.note = note.trim()
+      np.note = note.trim(); np.h = hist.trim()
       await backend.savePlace(np, photo && photo.blob, photo && photo.data)
       await reloadPlaces()
       toast('Saved. ' + np.n + (np.x != null ? ' is live' : ' needs a location'))
@@ -204,6 +205,7 @@ function PlaceForm({ place: p, onDone }) {
       <button className="btn line block" style={{ minHeight: 48 }} onClick={useMyLocation} disabled={locating}><Icon n="pin" s={18} /> {locating ? 'Getting your position…' : 'Use my current location'}</button>
       {acc != null && <p className="demo" style={{ textAlign: 'left', marginTop: -4, color: acc > 20 ? '#7A5200' : 'var(--mintInk)' }}>{acc > 20 ? `Weak signal (±${acc} m). Move to open sky and tap again.` : `Position taken, accurate to about ${acc} m.`}</p>}
       <div className="field"><label htmlFor="p-note">Good to know</label><textarea className="inp" id="p-note" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Second floor, turn left" /></div>
+      <div className="field"><label htmlFor="p-hist">History and facts</label><textarea className="inp" id="p-hist" style={{ minHeight: 130, height: 'auto', padding: 12, lineHeight: 1.45 }} value={hist} onChange={e => setHist(e.target.value)} placeholder="When it was built, who it is named after, what it is known for. Leave a blank line between paragraphs." /></div>
       <div className="field"><label>Building photo</label>
         <div className="photo" style={{ aspectRatio: '16/9' }}>{preview ? <img src={preview} alt="Preview" /> : <div style={{ display: 'grid', gap: 6, justifyItems: 'center' }}><Icon n="cam" /><span>No photo yet</span></div>}</div>
         <input type="file" id="p-photo" accept="image/*" className="inp" style={{ paddingTop: 11 }} onChange={pick} />
