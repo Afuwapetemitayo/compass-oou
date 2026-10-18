@@ -17,9 +17,11 @@ const photoUrl = path => supabase.storage.from('place-photos').getPublicUrl(path
 
 /* ------------------------------ Supabase ------------------------------ */
 const DEFAULT_TIPS = [
-  { id: 't1', title: 'Getting to Ago-Iwoye', body: 'From your city, take a bus or car going to Ago-Iwoye. Ask at the park which vehicle is going there, and agree the fare before you get in.', sort_order: 10 },
-  { id: 't2', title: 'Once you are in Ago-Iwoye', body: 'Tell the driver or keke rider you are going to OOU, at School Park (the drop-off point). They will know it.', sort_order: 20 },
-  { id: 't3', title: 'Stay safe', body: 'Keep your phone, money and admission documents close. Do not hand your bags to strangers. If you are lost, ask a student or a security officer.', sort_order: 30 }
+  { id: 't1', title: 'Where you get dropped depends on where you come from', body: 'Coming from Lagos by the normal route, the vehicle usually drops you at the school gate. From other places, some vehicles drop you at a junction in Ago-Iwoye. Ask the driver or other passengers where you will get down, and tell them you are going to OOU.', sort_order: 10 },
+  { id: 't2', title: 'If you are dropped at a junction', body: 'Take a cab or the school bus that goes inside the school. It will drop you at School Park, the main drop-off point. Say where you are going so the driver knows where to stop.', sort_order: 20 },
+  { id: 't3', title: 'If you take a bike or reach the school gate', body: 'A bike drops you at the school gate. From the gate, take a keke napep going inside the school and tell the rider exactly where you are going.', sort_order: 30 },
+  { id: 't4', title: 'If you are coming from a street or hostel area', body: 'Each street around Ago-Iwoye has buses that take students to School Park. Ask your neighbours or other students which bus to join from your street.', sort_order: 40 },
+  { id: 't5', title: 'Stay safe', body: 'Keep your phone, money and admission documents close. Agree the fare before you get in. If you are lost, ask a student or a security officer.', sort_order: 50 }
 ]
 
 const sb = {
