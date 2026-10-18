@@ -9,3 +9,6 @@ export function askLocation(cb) {
   if (!navigator.geolocation) { fin(null, 'unsupported'); return }
   try { navigator.geolocation.getCurrentPosition(p => fin(p), e => fin(null, e || 'denied'), { enableHighAccuracy: true, timeout: 8000, maximumAge: 5000 }) } catch (e) { fin(null, e) }
 }
+
+// straight-line distance in km between two lat/lng points
+export const distKm = (a, b, c, d) => { const R = 6371, r = Math.PI / 180, dl = (c - a) * r, dn = (d - b) * r, h = Math.sin(dl / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)) }

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../state'
 import { MapEngine } from '../lib/mapEngine'
 import { MODES, mins, project, route, snap } from '../lib/routing'
-import { askLocation, onCampus, xy } from '../lib/geo'
+import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
 import { slugify } from '../lib/places'
 import Icon from '../components/Icon'
 import { Sheet } from '../components/ui'
@@ -33,7 +33,7 @@ export default function MapPage() {
   const trackRef = useRef(null)        // continuous "you are here" watch
   const wantCenter = useRef(false)     // centre the map on the next fix
   const lastCell = useRef('')
-  const [outside, setOutside] = useState(false)   // GPS says you are not on campus
+  const [outside, setOutside] = useState(null)   // { la, lo } when GPS says you are not on campus
 
   const testStart = useMemo(() => places.find(p => p.n === 'School Park'), [places])
   const myLoc = () => gps.current ? { n: 'My location', x: gps.current.x, y: gps.current.y, s: snap(gps.current), v: 1 } : testStart
@@ -58,12 +58,12 @@ export default function MapPage() {
         const la = pos.coords.latitude, lo = pos.coords.longitude, e = eng.current
         if (!e) return
         if (!onCampus(la, lo)) {
-          gps.current = null; e.setMe(null); setOutside(true)
+          gps.current = null; e.setMe(null); setOutside({ la, lo })
           if (wantCenter.current) { wantCenter.current = false; toast('You are not at OOU right now, so there is no dot on the map') }
           return
         }
         const q2 = xy(la, lo), pt = { x: q2[0], y: q2[1] }
-        gps.current = pt; setOutside(false)
+        gps.current = pt; setOutside(null)
         e.setMe(pt, pos.coords.accuracy, pos.coords.speed > .6 ? pos.coords.heading : null)
         if (wantCenter.current) { wantCenter.current = false; e.centerOn(pt, .22) }
         const cell = Math.round(pt.x / 20) + ',' + Math.round(pt.y / 20)
@@ -114,7 +114,7 @@ export default function MapPage() {
       force(n => n + 1)
     })
   }
-  const okFix = pos => { const la = pos.coords.latitude, lo = pos.coords.longitude; if (!onCampus(la, lo)) { gps.current = null; setOutside(true); return false } setOutside(false); const p = xy(la, lo); gps.current = { x: p[0], y: p[1] }; return true }
+  const okFix = pos => { const la = pos.coords.latitude, lo = pos.coords.longitude; if (!onCampus(la, lo)) { gps.current = null; setOutside({ la, lo }); return false } setOutside(null); const p = xy(la, lo); gps.current = { x: p[0], y: p[1] }; return true }
 
   const start = () => {
     if (!curRef.current) return
@@ -186,13 +186,22 @@ export default function MapPage() {
         ) : (
           <div className="msheet" id="msheet">
             <button className="info" onClick={() => setSheet('credits')} aria-label="Map credits">i</button>
-            {outside && !navState && (
-              <div style={{ background: 'var(--sun)', borderRadius: 14, padding: 10, display: 'grid', gap: 6 }}>
-                <b style={{ fontSize: 14 }}>You are not on campus yet</b>
-                <span className="mut" style={{ fontSize: 13 }}>First get to the gate or School Park. We will show you how.</span>
-                <button className="btn gold" style={{ minHeight: 40, fontSize: 14 }} onClick={() => nav('/arrive')}>Coming to OOU? Start here</button>
-              </div>
-            )}
+            {outside && !navState && (() => {
+              const gate = places.find(p => p.n === 'School Park' && p.x != null) || places.find(p => /gate/i.test(p.n) && p.x != null)
+              if (!gate) return null
+              const [gla, glo] = ll(gate.x, gate.y), km = distKm(outside.la, outside.lo, gla, glo)
+              const url = `https://www.google.com/maps/dir/?api=1&origin=${outside.la.toFixed(6)},${outside.lo.toFixed(6)}&destination=${gla.toFixed(6)},${glo.toFixed(6)}&travelmode=driving`
+              return (
+                <div style={{ background: 'var(--sun)', borderRadius: 14, padding: 10, display: 'grid', gap: 6 }}>
+                  <b style={{ fontSize: 15 }}>{km < 1 ? 'You are very close to the school' : 'You are about ' + (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km from OOU'}</b>
+                  <span className="mut" style={{ fontSize: 13 }}>Get to {gate.n} first. Google Maps will guide you on the road, then Compass takes over inside the school.</span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <a className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14, textDecoration: 'none' }} href={url} target="_blank" rel="noreferrer"><Icon n="nav" s={18} /> Directions</a>
+                    <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/arrive')}>How to get in</button>
+                  </div>
+                </div>
+              )
+            })()}
             {hasRoute ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
