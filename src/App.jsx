@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import Arrive from './pages/Arrive'
 import { Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useApp } from './state'
@@ -8,6 +9,7 @@ import { Home, Directory, Place, Faq } from './pages/Main'
 import MapPage from './pages/MapPage'
 import Admin from './pages/Admin'
 import Privacy from './pages/Privacy'
+const GettingHere = lazy(() => import('./pages/GettingHere'))
 
 const TABS = [['/', 'Home', 'home'], ['/map', 'Map', 'map'], ['/directory', 'Directory', 'list'], ['/faq', 'FAQ', 'help']]
 
@@ -30,7 +32,7 @@ function Tabs() {
 function Layout() {
   const { pathname } = useLocation()
   const { toastMsg, hasSupabase } = useApp()
-  const showTabs = ['/', '/directory', '/faq', '/map', '/arrive'].includes(pathname) || pathname.startsWith('/place/')
+  const showTabs = ['/', '/directory', '/faq', '/map', '/arrive', '/getting-here'].includes(pathname) || pathname.startsWith('/place/')
   return (
     <div id="app" className={hasSupabase ? undefined : 'has-banner'}>
       {!hasSupabase && <div className="banner" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 60 }}>Test mode: accounts and edits stay on this device only</div>}
@@ -83,6 +85,7 @@ export default function App() {
           <Route path="/map" element={<MapPage />} />
           <Route path="/faq" element={<Faq />} />
           <Route path="/arrive" element={<Arrive />} />
+          <Route path="/getting-here" element={<Suspense fallback={<div className="pad"><p className="mut">Loading map…</p></div>}><GettingHere /></Suspense>} />
         </Route>
         <Route element={<RequireAuth admin />}>
           <Route path="/admin" element={<Admin />} />

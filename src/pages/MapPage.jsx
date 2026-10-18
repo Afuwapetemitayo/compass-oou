@@ -186,17 +186,16 @@ export default function MapPage() {
         ) : (
           <div className="msheet" id="msheet">
             <button className="info" onClick={() => setSheet('credits')} aria-label="Map credits">i</button>
-            {outside && !navState && (() => {
+            {outside && !navState && !(dest && dest === origin) && (() => {
               const gate = places.find(p => p.n === 'School Park' && p.x != null) || places.find(p => /gate/i.test(p.n) && p.x != null)
               if (!gate) return null
               const [gla, glo] = ll(gate.x, gate.y), km = distKm(outside.la, outside.lo, gla, glo)
-              const url = `https://www.google.com/maps/dir/?api=1&origin=${outside.la.toFixed(6)},${outside.lo.toFixed(6)}&destination=${gla.toFixed(6)},${glo.toFixed(6)}&travelmode=driving`
               return (
                 <div style={{ background: 'var(--sun)', borderRadius: 14, padding: 10, display: 'grid', gap: 6 }}>
                   <b style={{ fontSize: 15 }}>{km < 1 ? 'You are very close to the school' : 'You are about ' + (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km from OOU'}</b>
-                  <span className="mut" style={{ fontSize: 13 }}>Get to {gate.n} first. Google Maps will guide you on the road, then Compass takes over inside the school.</span>
+                  <span className="mut" style={{ fontSize: 13 }}>Get to {gate.n} first. We will draw the road for you, then switch to the campus map when you arrive.</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <a className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14, textDecoration: 'none' }} href={url} target="_blank" rel="noreferrer"><Icon n="nav" s={18} /> Directions</a>
+                    <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugify(gate.n))}><Icon n="nav" s={18} /> Show me the way</button>
                     <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/arrive')}>How to get in</button>
                   </div>
                 </div>
@@ -214,7 +213,14 @@ export default function MapPage() {
                 {!navState && (dest.v === 2 || origin.v === 2) && <p className="demo" style={{ textAlign: 'left' }}>One end is not checked on site yet, so the path may be a little off.</p>}
               </>
             ) : (
-              <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a dot or choose a place'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Drag to move, pinch to zoom. Blue buildings are places you can tap. Gold dots are not checked on site yet.</p></div>
+              dest && dest === origin && dest.n === 'School Park' && !gps.current ? (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <b style={{ fontSize: 17 }}>Going to {dest.n}?</b>
+                  <p className="mut" style={{ lineHeight: 1.45 }}>{dest.n} is where you get dropped at the school. We cannot see you on campus, so let us show you the road from where you are.</p>
+                  <button className="btn gold block" onClick={() => nav('/getting-here?to=' + slugify(dest.n))}><Icon n="nav" s={18} /> Show me the way</button>
+                  <p className="demo" style={{ textAlign: 'left' }}>Already inside the school? Pick a different start in the From box.</p>
+                </div>
+              ) : <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a dot or choose a place'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Drag to move, pinch to zoom. Blue buildings are places you can tap. Gold dots are not checked on site yet.</p></div>
             )}
           </div>
         )}

@@ -156,30 +156,52 @@ export function Place() {
 
 /* -------------------------------- FAQ -------------------------------- */
 const FAQ = [
-  ['Where do I collect my ID card?', "Go to your faculty officer or the Dean's office. They will tell you the days and what to bring."],
-  ['How do I find my lecture hall?', 'Ask your class rep first, then search the hall name in the Directory and tap Get directions.'],
-  ['I am not at the school yet. How do I get there?', 'Open "Coming to OOU?" from Home. It shows how to get to Ago-Iwoye, which gate or park to ask for, and opens Google Maps for the road, then Compass takes over inside.', true],
-  ['Who do I call if I am lost?', 'Call the university support line, then use Map to see where you are.']
+  { g: 'Getting here', items: [
+    ['I am not at the school yet. How do I get there?', 'Open Coming to OOU. It tells you which vehicle to take, where you will be dropped, and draws the road to the school on your phone.', ['Coming to OOU', '/arrive']],
+    ['Where do I get dropped when I arrive?', 'School Park is the main drop-off point. If a vehicle drops you at the school gate, take a keke napep going inside and tell the rider where you are going.', ['Show me the way to School Park', '/getting-here?to=school-park']]
+  ] },
+  { g: 'On campus', items: [
+    ['How do I find my lecture hall?', 'Ask your class rep first, then search the hall name in the Directory and tap Get directions.', ['Open the Directory', '/directory']],
+    ['Where do I collect my ID card?', "Go to your faculty officer or the Dean's office. They will tell you the days and what to bring."]
+  ] },
+  { g: 'Need help', items: [
+    ['Who do I call if I am lost?', 'Call the university support line below, then open Map to see where you are.', ['Open the map', '/map']]
+  ] }
 ]
+function QA({ q, a, act, nav }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={'qa' + (open ? ' open' : '')}>
+      <button onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span>{q}</span>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {open && <div className="qa-a"><p>{a}</p>{act && <button className="btn gold" style={{ minHeight: 44, fontSize: 14, justifySelf: 'start' }} onClick={() => nav(act[1])}>{act[0]}</button>}</div>}
+    </div>
+  )
+}
 export function Faq() {
   const nav = useNavigate()
-  const [open, setOpen] = useState(0)
   return (
     <View>
       <div className="pad">
-        <h1>FAQ</h1><p className="mut">Quick answers for new students.</p>
-        <div className="photo" style={{ aspectRatio: '16/8', background: 'linear-gradient(135deg,var(--blue2),var(--blue))', color: '#fff', textAlign: 'left', placeItems: 'end start', padding: 16 }}>
-          <div><div style={{ fontSize: 12, letterSpacing: '.08em', textTransform: 'uppercase', opacity: .8 }}>New here?</div><h2 style={{ color: '#fff' }}>Start at School Park</h2><span style={{ opacity: .85 }}>The drop-off point. Most people are dropped here, then walk or take a keke.</span></div>
+        <div><h1>Help</h1><p className="mut" style={{ marginTop: 4 }}>Quick answers for new students.</p></div>
+        <div className="stats" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <button className="card qa-tile" style={{ background: 'var(--gold)', borderColor: 'var(--gold)' }} onClick={() => nav('/arrive')}><span className="ic" style={{ background: 'rgba(255,255,255,.55)', color: '#0A1B4D' }}><Icon n="pin" /></span><b>Coming to OOU</b><span>From outside to the gate</span></button>
+          <button className="card qa-tile" style={{ background: 'var(--blue)', borderColor: 'var(--blue)', color: '#fff' }} onClick={() => nav('/map')}><span className="ic" style={{ background: 'rgba(255,255,255,.18)', color: '#fff' }}><Icon n="map" /></span><b>Find my way</b><span style={{ opacity: .85 }}>Map and directions</span></button>
         </div>
-        <button className="btn gold block" style={{ minHeight: 48 }} onClick={() => nav('/map?to=school-park')}>Show School Park on map</button>
-        <div>{FAQ.map((f, i) => (
-          <div className="faq" key={i}>
-            <button onClick={() => setOpen(open === i ? -1 : i)} aria-expanded={open === i}>{f[0]}<span>{open === i ? '−' : '+'}</span></button>
-            {open === i && <p>{f[1]}</p>}
-            {open === i && f[2] && <button className="btn gold block" style={{ minHeight: 44, margin: '0 0 10px' }} onClick={() => nav('/arrive')}>Open Coming to OOU</button>}
+        {FAQ.map(grp => (
+          <div key={grp.g} style={{ display: 'grid', gap: 8 }}>
+            <div className="mut" style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>{grp.g}</div>
+            {grp.items.map(([q, a, act]) => <QA key={q} q={q} a={a} act={act} nav={nav} />)}
           </div>
-        ))}</div>
-        <div className="card"><h3>University contacts</h3><p className="mut" style={{ marginTop: 6, lineHeight: 1.6 }}>+234 913 500 4446<br />+234 913 500 4447<br />enquiry@oouagoiwoye.edu.ng</p></div>
+        ))}
+        <div className="card" style={{ display: 'grid', gap: 8 }}>
+          <h3>University contacts</h3>
+          <a className="qa-link" href="tel:+2349135004446">+234 913 500 4446</a>
+          <a className="qa-link" href="tel:+2349135004447">+234 913 500 4447</a>
+          <a className="qa-link" href="mailto:enquiry@oouagoiwoye.edu.ng">enquiry@oouagoiwoye.edu.ng</a>
+        </div>
       </div>
     </View>
   )

@@ -42,15 +42,15 @@ export default function Arrive() {
         </Step>
 
         <Step n="2" title="Get into the school">
-          <p className="mut" style={{ lineHeight: 1.5 }}>Ask the driver to drop you at one of these. Tap Directions to open Google Maps from where you are. It works anywhere, even before you reach Ago-Iwoye.</p>
+          <p className="mut" style={{ lineHeight: 1.5 }}>Ask the driver to drop you at one of these. Tap Show me the way and the app draws the road from where you are to there, and follows you as you travel.</p>
           {ways.length === 0 && <p className="mut">No entry points have been added yet.</p>}
           <div className="list">
             {ways.map(p => (
               <div key={p.n} className="li" style={{ display: 'grid', gap: 8, padding: 12 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="ic"><Icon n="pin" /></span><span className="t"><b>{p.n}</b><span>{p.t}{p.note ? ' · ' + p.note : ''}</span></span></div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <a className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14, textDecoration: 'none' }} href={gmaps(p)} target="_blank" rel="noreferrer"><Icon n="nav" s={18} /> Directions</a>
-                  <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/map?to=' + slugify(p.n))}>On campus map</button>
+                  <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugify(p.n))}><Icon n="nav" s={18} /> Show me the way</button>
+                  <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/map?to=' + slugify(p.n))}>See it on campus</button>
                 </div>
               </div>
             ))}
