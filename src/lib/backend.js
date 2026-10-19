@@ -105,6 +105,7 @@ const sb = {
     if (error) throw error
   },
   async deleteTip(id) { const { error } = await supabase.from('arrival_tips').delete().eq('id', id); if (error) throw error },
+  async setRole(id, role) { const { error } = await supabase.rpc('set_user_role', { target: id, new_role: role }); if (error) throw error },
   async listUsers() {
     const { data, error } = await supabase.from('profiles').select('id,full_name,email,faculty,level,role,created_at,last_seen_at,dept:department_id(name)').order('created_at', { ascending: false }).limit(2000)
     if (error) throw error
@@ -158,10 +159,12 @@ const local = {
   async listTips() { return ls.get('tips', DEFAULT_TIPS) },
   async saveTip(t) { const l = ls.get('tips', DEFAULT_TIPS); ls.set('tips', t.id ? l.map(x => x.id === t.id ? { ...x, ...t } : x) : [...l, { ...t, id: 't' + Date.now(), sort_order: t.sort_order ?? 100 }]) },
   async deleteTip(id) { ls.set('tips', ls.get('tips', DEFAULT_TIPS).filter(x => x.id !== id)) },
+  async setRole(id, role) { const r = ls.get('roles', {}); r[id] = role; ls.set('roles', r) },
   async listUsers() {
     const u = ls.get('user', null)
     const me = u ? [{ id: 'local', name: u.name, email: u.email, faculty: u.fac, dept: u.dep, level: u.lv, role: u.role, joined: new Date().toISOString(), seen: new Date().toISOString() }] : []
-    return [...me, { id: 's1', name: 'Adebayo Tolu', email: 'adebayo.tolu@gmail.com', faculty: 'Social Sciences', dept: 'Economics', level: '200', role: 'student', joined: '2026-10-12T10:00:00Z', seen: '2026-10-17T09:00:00Z' }, { id: 's2', name: 'Sample Student', email: 'sample@example.com', faculty: 'Science', dept: 'Statistics', level: '100', role: 'student', joined: '2026-10-14T10:00:00Z', seen: null }]
+    const rl = ls.get('roles', {})
+    return [...me, { id: 's1', name: 'Adebayo Tolu', email: 'adebayo.tolu@gmail.com', faculty: 'Social Sciences', dept: 'Economics', level: '200', role: 'student', joined: '2026-10-12T10:00:00Z', seen: '2026-10-17T09:00:00Z' }, { id: 's2', name: 'Sample Student', email: 'sample@example.com', faculty: 'Science', dept: 'Statistics', level: '100', role: 'student', joined: '2026-10-14T10:00:00Z', seen: null }].map(x => rl[x.id] ? { ...x, role: rl[x.id] } : x)
   }
 }
 

@@ -258,11 +258,26 @@ function Reports() {
 }
 
 function Users() {
-  const { toast } = useApp()
+  const { toast, session } = useApp()
   const [list, setList] = useState(null)
   const [err, setErr] = useState('')
   const [q, setQ] = useState('')
-  useEffect(() => { backend.listUsers().then(setList).catch(e => setErr(e.message || 'Could not load users')) }, [])
+  const [em, setEm] = useState('')
+  const load = () => backend.listUsers().then(setList).catch(e => setErr(e.message || 'Could not load users'))
+  useEffect(() => { load() }, [])   // eslint-disable-line
+  const me = session && session.user ? session.user.id : null
+  const setRole = async (u, role) => {
+    const msg = role === 'admin' ? 'Make ' + u.name + ' (' + u.email + ') an admin? They will see every student\'s details and can edit places.' : 'Remove admin access from ' + u.name + '?'
+    if (!window.confirm(msg)) return
+    try { await backend.setRole(u.id, role); toast(role === 'admin' ? u.name + ' is now an admin' : 'Admin access removed'); load() } catch (e) { toast(e.message || 'Could not change the role') }
+  }
+  const addByEmail = () => {
+    const t = em.trim().toLowerCase(); if (!t) return
+    const u = (list || []).find(x => (x.email || '').toLowerCase() === t)
+    if (!u) return toast('No one has signed up with that email yet. Ask them to register first.')
+    if (u.role === 'admin') return toast(u.name + ' is already an admin')
+    setRole(u, 'admin').then(() => setEm(''))
+  }
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase()
     return (list || []).filter(u => !t || [u.name, u.email, u.faculty, u.dept, u.level].some(v => (v || '').toLowerCase().includes(t)))
@@ -279,6 +294,14 @@ function Users() {
     <>
       <div className="stats"><div className="card stat"><b>{list ? list.length : 0}</b><span>Registered</span></div><div className="card stat"><b>{list ? list.filter(u => u.seen && Date.now() - new Date(u.seen) < 7 * 864e5).length : 0}</b><span>Active this week</span></div></div>
       {err && <div className="card" style={{ color: '#C0392B' }}>{err}</div>}
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <b>Add an admin</b>
+        <span className="mut" style={{ fontSize: 13, lineHeight: 1.45 }}>The person must register first. Type the email they used.</span>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input className="inp" style={{ flex: 1 }} type="email" inputMode="email" autoCapitalize="none" placeholder="their@email.com" value={em} onChange={e => setEm(e.target.value)} />
+          <button className="btn gold" style={{ minHeight: 52 }} onClick={addByEmail} disabled={!em.trim()}>Make admin</button>
+        </div>
+      </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <input className="inp" style={{ flex: 1 }} placeholder="Search name, email, faculty…" value={q} onChange={e => setQ(e.target.value)} />
         <button className="btn line" style={{ minHeight: 44 }} onClick={csv} disabled={!shown.length}>Download CSV</button>
@@ -294,6 +317,9 @@ function Users() {
             <button onClick={() => copy(u.email)} style={{ background: 'none', border: 0, padding: 0, font: 'inherit', textAlign: 'left', color: 'var(--blue, #1B3FD6)', overflowWrap: 'anywhere' }}>{u.email}</button>
             <div className="mut" style={{ fontSize: 13 }}>{[u.faculty, u.dept, u.level && u.level + ' level'].filter(Boolean).join(' · ') || 'Profile not completed'}</div>
             <div className="mut" style={{ fontSize: 12 }}>Joined {day(u.joined)} · Last seen {day(u.seen)}</div>
+            {u.id !== me && u.id !== 'local' && (u.role === 'admin'
+              ? <button className="btn line" style={{ minHeight: 40, fontSize: 14, justifySelf: 'start', color: '#C0392B' }} onClick={() => setRole(u, 'student')}>Remove admin</button>
+              : <button className="btn line" style={{ minHeight: 40, fontSize: 14, justifySelf: 'start' }} onClick={() => setRole(u, 'admin')}>Make admin</button>)}
           </div>
         ))}
       </div>
@@ -382,7 +408,17 @@ function Shortcuts() {
   const len = Math.round(lenOf(pts))
   return (
     <>
-      <p className="mut" style={{ lineHeight: 1.5 }}>Shortcuts are the footpaths between buildings that are not on the road map. Start at one end where it joins a road or another path, walk the shortcut at a normal pace with your phone out, and stop at the other end. Walkers get them in their directions. Keke and cars do not.</p>
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <b>How to record shortcuts</b>
+        <ol className="steps" style={{ lineHeight: 1.45 }}>
+          <li><i>1</i><span>Record each footpath once, as its own piece. Do not record whole trips between two places. The app joins the pieces for you.</span></li>
+          <li><i>2</i><span>Start where the footpath leaves a road, another shortcut, or a building door. End where it reaches one of those. Ends within 20 m of a road or another shortcut join it. Shortcuts that cross also join.</span></li>
+          <li><i>3</i><span>Walk at a normal pace in the open, with the phone in your hand. Wait for accuracy under 10 m before you start.</span></li>
+          <li><i>4</i><span>Name it by where it goes, like "Motion Ground to ICT, path 1". A place with five shortcuts means five recordings.</span></li>
+          <li><i>5</i><span>One direction is enough. Walkers can use it both ways.</span></li>
+          <li><i>6</i><span>Check it: open Map, choose the two places, and look for the white dotted line and "Includes a shortcut".</span></li>
+        </ol>
+      </div>
       <div className="card" style={{ display: 'grid', gap: 10 }}>
         {!rec ? <button className="btn blue block" onClick={start}>{pts.length ? 'Record again' : 'Start recording a shortcut'}</button> : <button className="btn gold block" onClick={stop}>Stop recording</button>}
         {(rec || pts.length > 0) && <div className="mut" style={{ lineHeight: 1.5 }}>{pts.length} points · {len} m{acc != null && rec ? ' · accuracy about ' + acc + ' m' : ''}{rec && acc > 20 ? ' (too weak, move to open sky)' : ''}</div>}

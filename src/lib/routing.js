@@ -15,44 +15,76 @@ function rebuild() {
 }
 rebuild()
 
-// nearest point on any road edge
-function nearestOnRoad(x, y) {
+// Edge lists: roads are [a, b]; footpaths are [a, b, pathNumber].
+const listOf = k => k === 'r' ? EDGES : PEDGES
+// nearest point on any edge that does not belong to path `own` (roads count as nobody's)
+function nearestEdge(x, y, own) {
   let best = null
-  EDGES.forEach(([a, b], ei) => {
-    const ax = N[a][0], ay = N[a][1], dx = N[b][0] - ax, dy = N[b][1] - ay, l2 = dx * dx + dy * dy
+  ;[['r', EDGES], ['p', PEDGES]].forEach(([kind, L]) => L.forEach((e, idx) => {
+    if (kind === 'p' && e[2] === own) return
+    const ax = N[e[0]][0], ay = N[e[0]][1], dx = N[e[1]][0] - ax, dy = N[e[1]][1] - ay, l2 = dx * dx + dy * dy
     const t = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0
     const px = ax + t * dx, py = ay + t * dy, d = Math.hypot(x - px, y - py)
-    if (!best || d < best.d) best = { d, ei, t, px, py }
-  })
+    if (!best || d < best.d) best = { d, kind, idx, t, px, py }
+  }))
   return best
 }
-// make a node on the road at that spot (splitting the road in two) and return its id
-function joinRoad(hit) {
-  const [a, b] = EDGES[hit.ei]
-  if (hit.t < .02) return a
-  if (hit.t > .98) return b
-  const id = N.push([hit.px, hit.py]) - 1
-  EDGES[hit.ei] = [a, id]; EDGES.push([id, b])
+// put a node on an edge (splitting it in two) and return that node's id
+function splitAt(kind, idx, t, px, py) {
+  const L = listOf(kind), e = L[idx]
+  if (t < .02) return e[0]
+  if (t > .98) return e[1]
+  const id = N.push([px, py]) - 1
+  const own = e[2]
+  L[idx] = kind === 'p' ? [e[0], id, own] : [e[0], id]
+  L.push(kind === 'p' ? [id, e[1], own] : [id, e[1]])
   return id
 }
-// paths: [{ points: [[lat, lng], ...] }]  Called with the full list every time, so it can be called again safely.
+// where two segments cross (proper crossing only), or null
+function cross(a, b, c, d) {
+  const r = [b[0] - a[0], b[1] - a[1]], q = [d[0] - c[0], d[1] - c[1]], den = r[0] * q[1] - r[1] * q[0]
+  if (Math.abs(den) < 1e-9) return null
+  const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / den, u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / den
+  return t > .02 && t < .98 && u > .02 && u < .98 ? { t, u, x: a[0] + t * r[0], y: a[1] + t * r[1] } : null
+}
+// paths: [{ points: [[lat, lng], ...] }]. Called with the full list every time, so it is safe to call again.
+// A footpath joins a road or another footpath where its ends are close to it (20 m), where it passes right by it (5 m), or where they cross.
 export function setPaths(paths, toXY) {
   N.length = BASE_N.length; EDGES.length = 0; BASE_E.forEach(e => EDGES.push(e.slice())); PEDGES.length = 0
-  ;(paths || []).forEach(pa => {
+  const owned = (paths || []).map((pa, pi) => {
     const pts = (pa.points || []).map(q => toXY(q[0], q[1]))
-    if (pts.length < 2) return
-    let prev = null
-    pts.forEach((q, i) => {
-      const end = i === 0 || i === pts.length - 1
-      const hit = nearestOnRoad(q[0], q[1])
-      let id
-      if (hit && hit.d <= (end ? 30 : 6)) { id = joinRoad(hit); if (hit.d > 1) { /* a short link from the path point to the road */ } }
-      const nid = N.push([q[0], q[1]]) - 1
-      if (id != null) PEDGES.push([nid, id])
-      if (prev != null) PEDGES.push([prev, nid])
-      prev = nid
+    if (pts.length < 2) return null
+    const ids = pts.map(q => N.push([q[0], q[1]]) - 1)
+    for (let i = 1; i < ids.length; i++) PEDGES.push([ids[i - 1], ids[i], pi])
+    return ids
+  })
+  // 1) ends and close passes
+  owned.forEach((ids, pi) => {
+    if (!ids) return
+    ids.forEach((id, k) => {
+      const end = k === 0 || k === ids.length - 1, hit = nearestEdge(N[id][0], N[id][1], pi)
+      if (hit && hit.d <= (end ? 20 : 5)) { const j = splitAt(hit.kind, hit.idx, hit.t, hit.px, hit.py); if (j !== id) PEDGES.push([id, j, -1]) }
     })
   })
+  // 2) footpaths that cross a road or another footpath
+  for (let guard = 0; guard < 300; guard++) {
+    let found = null
+    outer: for (let i = 0; i < PEDGES.length; i++) {
+      const e = PEDGES[i]; if (e[2] < 0) continue
+      for (const [kind, L] of [['r', EDGES], ['p', PEDGES]]) for (let j = 0; j < L.length; j++) {
+        const f = L[j]; if (kind === 'p' && (f[2] < 0 || f[2] === e[2])) continue
+        const x = cross(N[e[0]], N[e[1]], N[f[0]], N[f[1]])
+        if (x) { found = { i, kind, j, x }; break outer }
+      }
+    }
+    if (!found) break
+    const { i, kind, j, x } = found
+    const id = splitAt('p', i, x.t, x.x, x.y)
+    // split the other edge at the same spot, reusing the node
+    const L = listOf(kind), f = L[j], own = f[2]
+    L[j] = kind === 'p' ? [f[0], id, own] : [f[0], id]
+    L.push(kind === 'p' ? [id, f[1], own] : [id, f[1]])
+  }
   rebuild()
 }
 export const pathCount = () => PEDGES.length
