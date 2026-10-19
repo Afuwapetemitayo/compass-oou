@@ -14,6 +14,10 @@ export const slugify = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(
 function finish(list) {
   const deptCount = {}
   list.forEach(p => { if (p.c === 'Departments') deptCount[p.f] = (deptCount[p.f] || 0) + 1 })
+  // Most departments sit inside their faculty building. Until a department has its own spot, use the faculty's.
+  const fac = {}
+  list.forEach(p => { if (p.c === 'Faculties' && p.x != null) fac[p.f] = p })
+  list.forEach(p => { p.inherit = null; if (p.c === 'Departments' && p.x == null && fac[p.f]) { const f = fac[p.f]; p.x = f.x; p.y = f.y; p.v = f.v; p.inherit = f.n } })
   list.forEach((p, i) => {
     p.i = i
     if (p.c === 'Faculties') p.k = deptCount[p.f] || p.k || 0

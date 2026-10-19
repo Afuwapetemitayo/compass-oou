@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state'
 import { backend, hasSupabase } from '../lib/backend'
 import { CATS, areaOf } from '../lib/places'
-import { ll, xy, inOOUBounds } from '../lib/geo'
+import { ll, xy, inOOUBounds, distKm } from '../lib/geo'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
 
@@ -22,12 +22,13 @@ export default function Admin() {
           <div style={{ flex: 1 }}><div className="mut" style={{ fontSize: 12 }}>Admin · signed in as {profile.name.split(' ')[0]}</div><h2>Dashboard</h2></div>
         </div>
         <div className="seg" role="tablist">
-          {[['overview', 'Overview'], ['users', 'Users'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports'], ['tips', 'Arrival']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
+          {[['overview', 'Overview'], ['users', 'Users'], ['places', 'Places'], ['add', 'Add place'], ['reports', 'Reports'], ['paths', 'Shortcuts'], ['tips', 'Arrival']].map(([k, l]) => <button key={k} aria-pressed={tab === k || (k === 'places' && tab === 'edit')} onClick={() => { setTab(k); setEdit(null) }}>{l}</button>)}
         </div>
         {tab === 'overview' && <Overview places={places} />}
         {tab === 'reports' && <Reports />}
         {tab === 'users' && <Users />}
         {tab === 'tips' && <Tips />}
+        {tab === 'paths' && <Shortcuts />}
         {tab === 'places' && <PlacesList places={places} onEdit={p => { setEdit(p); setTab('edit') }} />}
         {tab === 'add' && <PlaceForm key="new" place={null} onDone={() => setTab('places')} />}
         {tab === 'edit' && <><button className="btn line" style={{ justifySelf: 'start', minHeight: 40 }} onClick={() => setTab('places')}><Icon n="back" s={18} /> All places</button><PlaceForm key={edit.n} place={edit} onDone={() => setTab('places')} /></>}
@@ -87,7 +88,7 @@ function PlacesList({ places, onEdit }) {
   const [at, setAt] = useState('All')
   const live = places.filter(p => p.x != null).length, miss = places.length - live
   const ql = aq.trim().toLowerCase()
-  const list = places.filter(p => (af === 'all' || (af === 'live' ? p.x != null : p.x == null)) && (at === 'All' || p.c === at) && (!ql || (p.n + ' ' + p.f).toLowerCase().includes(ql)))
+  const list = places.filter(p => (af === 'all' || (af === 'live' ? p.x != null : (p.x == null || !!p.inherit))) && (at === 'All' || p.c === at) && (!ql || (p.n + ' ' + p.f).toLowerCase().includes(ql)))
   return (
     <>
       <div className="stats"><div className="card stat"><b>{places.length}</b><span>All places</span></div><div className="card stat"><b>{live}</b><span>Live</span></div></div>
@@ -98,7 +99,7 @@ function PlacesList({ places, onEdit }) {
         {list.length ? list.map(p => (
           <button key={p.n} className="li" onClick={() => onEdit(p)}>
             <span className="t"><b>{p.n}</b><span>{p.c}{p.photo ? ' · has photo' : ''}</span></span>
-            {p.x != null ? (p.v === 2 ? <span className="pill un">Live · unverified</span> : <span className="pill on">Live</span>) : <span className="pill off">Needs location</span>}
+            {p.inherit ? <span className="pill un">In faculty building</span> : p.x != null ? (p.v === 2 ? <span className="pill un">Live · unverified</span> : <span className="pill on">Live</span>) : <span className="pill off">Needs location</span>}
           </button>
         )) : <div className="li"><span className="t"><b>No places match</b></span></div>}
       </div>
@@ -129,7 +130,7 @@ function resizePhoto(file) {
 
 function PlaceForm({ place: p, onDone }) {
   const { places, reloadPlaces, toast } = useApp()
-  const [la0, lo0] = p && p.x != null ? ll(p.x, p.y) : ['', '']
+  const [la0, lo0] = p && p.x != null && !p.inherit ? ll(p.x, p.y) : ['', '']
   const [name, setName] = useState(p ? p.n : '')
   const [cat, setCat] = useState('Buildings')
   const [lat, setLat] = useState(la0 === '' ? '' : la0.toFixed(6))
@@ -182,7 +183,7 @@ function PlaceForm({ place: p, onDone }) {
     if (hasCoords && !inOOUBounds(la, lo)) return toast('Those coordinates are outside OOU')
     setBusy(true)
     try {
-      const np = p ? { ...p } : { n: name.trim(), c: cat, t: cat.replace(/ies$/, 'y').replace(/s$/, ''), f: '', a: '', k: 0, x: null, y: null, v: 0, id: null }
+      const np = p ? { ...p, ...(p.inherit ? { x: null, y: null, v: 0 } : {}) } : { n: name.trim(), c: cat, t: cat.replace(/ies$/, 'y').replace(/s$/, ''), f: '', a: '', k: 0, x: null, y: null, v: 0, id: null }
       if (hasCoords) {
         const [x, y] = xy(la, lo)
         if (np.x == null || Math.hypot(np.x - x, np.y - y) > .5) { np.x = x; np.y = y; np.v = 1 }
@@ -332,6 +333,79 @@ function Tips() {
               <button className="btn line" style={{ minHeight: 40, fontSize: 14 }} onClick={() => setEdit({ ...t })}>Edit</button>
               <button className="btn line" style={{ minHeight: 40, fontSize: 14, color: '#C0392B' }} onClick={() => del(t)}>Delete</button>
             </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// Record a shortcut by walking it, or paste a route from the collector.
+function Shortcuts() {
+  const { toast, reloadPlaces } = useApp()
+  const [list, setList] = useState(null)
+  const [rec, setRec] = useState(false)
+  const [pts, setPts] = useState([])           // [[lat, lng], ...]
+  const [acc, setAcc] = useState(null)
+  const [name, setName] = useState('')
+  const [paste, setPaste] = useState('')
+  const wid = useRef(null)
+  const load = () => backend.listPaths().then(setList).catch(e => toast(e.message || 'Could not load. Did you run paths.sql?'))
+  useEffect(() => { load(); return () => stop() }, [])   // eslint-disable-line
+  const lenOf = a => a.reduce((t, q, i) => i ? t + distKm(a[i - 1][0], a[i - 1][1], q[0], q[1]) * 1000 : 0, 0)
+  const stop = () => { if (wid.current != null && navigator.geolocation) navigator.geolocation.clearWatch(wid.current); wid.current = null; setRec(false) }
+  const start = () => {
+    if (!navigator.geolocation) return toast('This phone cannot share its location')
+    setPts([]); setRec(true)
+    wid.current = navigator.geolocation.watchPosition(p => {
+      const la = p.coords.latitude, lo = p.coords.longitude
+      setAcc(Math.round(p.coords.accuracy))
+      if (!inOOUBounds(la, lo) || p.coords.accuracy > 20) return
+      setPts(a => (!a.length || distKm(a[a.length - 1][0], a[a.length - 1][1], la, lo) * 1000 >= 6) ? [...a, [+la.toFixed(6), +lo.toFixed(6)]] : a)
+    }, () => { toast('Could not read your location. Allow location and try again.'); stop() }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
+  }
+  // collector text: any line holding "latitude, longitude" counts, in order
+  const importText = () => {
+    const out = []
+    paste.split('\n').forEach(l => { const m = l.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/); if (m) out.push([+m[1], +m[2]]) })
+    if (out.length < 3) return toast('Need at least 3 points. Record waypoints along the path, not just the start and end.')
+    if (out.some(q => !inOOUBounds(q[0], q[1]))) return toast('Some points are outside OOU')
+    for (let i = 1; i < out.length; i++) if (distKm(out[i - 1][0], out[i - 1][1], out[i][0], out[i][1]) * 1000 > 150) return toast('Points ' + i + ' and ' + (i + 1) + ' are more than 150 m apart. Add points every 30 to 50 m so the path follows the real way.')
+    setPts(out); setPaste(''); toast(out.length + ' points ready. Add a name and save.')
+  }
+  const save = async () => {
+    if (pts.length < 3) return toast('Walk a bit more, we need at least 3 points')
+    if (!name.trim()) return toast('Give the shortcut a name')
+    try { await backend.savePath({ name: name.trim(), points: pts }); setPts([]); setName(''); await reloadPlaces(); load(); toast('Shortcut saved. It is on the map now') } catch (e) { toast(e.message || 'Could not save') }
+  }
+  const del = async x => { if (!window.confirm('Delete "' + x.name + '"?')) return; try { await backend.deletePath(x.id); await reloadPlaces(); load() } catch (e) { toast(e.message || 'Could not delete') } }
+  const len = Math.round(lenOf(pts))
+  return (
+    <>
+      <p className="mut" style={{ lineHeight: 1.5 }}>Shortcuts are the footpaths between buildings that are not on the road map. Start at one end where it joins a road or another path, walk the shortcut at a normal pace with your phone out, and stop at the other end. Walkers get them in their directions. Keke and cars do not.</p>
+      <div className="card" style={{ display: 'grid', gap: 10 }}>
+        {!rec ? <button className="btn blue block" onClick={start}>{pts.length ? 'Record again' : 'Start recording a shortcut'}</button> : <button className="btn gold block" onClick={stop}>Stop recording</button>}
+        {(rec || pts.length > 0) && <div className="mut" style={{ lineHeight: 1.5 }}>{pts.length} points · {len} m{acc != null && rec ? ' · accuracy about ' + acc + ' m' : ''}{rec && acc > 20 ? ' (too weak, move to open sky)' : ''}</div>}
+        {!rec && pts.length > 0 && (
+          <>
+            <div className="field"><label htmlFor="sc-name">Name</label><input className="inp" id="sc-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Motion Ground to ICT" /></div>
+            <button className="btn gold block" onClick={save}>Save shortcut</button>
+            <button className="btn line block" onClick={() => setPts([])}>Discard</button>
+          </>
+        )}
+      </div>
+      <div className="card" style={{ display: 'grid', gap: 8 }}>
+        <b>Or paste from the collector</b>
+        <textarea className="inp" style={{ minHeight: 100, padding: 12, fontSize: 14 }} value={paste} onChange={e => setPaste(e.target.value)} placeholder={'1 | Start | 6.922998, 3.87354 | 1 m\n2 | Waypoint | 6.923210, 3.87390 | 2 m\n3 | Destination | 6.923500, 3.87410 | 2 m'} />
+        <button className="btn line block" onClick={importText} disabled={!paste.trim()}>Use these points</button>
+      </div>
+      <h3>Saved shortcuts</h3>
+      {list && !list.length && <div className="card mut">None yet.</div>}
+      <div style={{ display: 'grid', gap: 10 }}>
+        {(list || []).map(x => (
+          <div className="card" key={x.id} style={{ display: 'grid', gap: 6 }}>
+            <b>{x.name}</b><span className="mut" style={{ fontSize: 13 }}>{x.points.length} points · {Math.round(lenOf(x.points))} m</span>
+            <button className="btn line" style={{ minHeight: 40, fontSize: 14, color: '#C0392B', justifySelf: 'start' }} onClick={() => del(x)}>Delete</button>
           </div>
         ))}
       </div>

@@ -138,7 +138,8 @@ export function Place() {
             <button className="btn line block" onClick={() => nav(mapPath(p))}><Icon n="map" s={18} /> Show on map</button>
           </>
         ) : <div className="card"><b>Location coming soon</b><p className="mut" style={{ marginTop: 4 }}>We have not captured this place on site yet. You can still ask at the faculty office.</p></div>}
-        {p.v === 2 && <div className="card" style={{ background: 'var(--tint)' }}><b>Not yet checked on site</b><p className="mut" style={{ marginTop: 4 }}>We have not checked this position on site yet. It may be a few metres off.</p></div>}
+        {p.inherit && <div className="card" style={{ background: 'var(--tint)' }}><b>Inside {p.inherit}</b><p className="mut" style={{ marginTop: 4 }}>This department is in the faculty building. The map takes you to the building. Ask at the faculty office or follow the signs for the exact hall.</p></div>}
+        {!p.inherit && p.v === 2 && <div className="card" style={{ background: 'var(--tint)' }}><b>Not yet checked on site</b><p className="mut" style={{ marginTop: 4 }}>We have not checked this position on site yet. It may be a few metres off.</p></div>}
         <div className="card"><h3>Getting there</h3><ol className="steps" style={{ marginTop: 10 }}><li><i>1</i><span>Tap Get directions and choose where you are, or use your location.</span></li><li><i>2</i><span>Follow the gold path. The arrow shows the way.</span></li><li><i>3</i><span>Pick Walk, Keke Napep or Car to see the minutes.</span></li></ol></div>
         <div className="card" style={{ display: 'grid', gap: 8 }}>
           <h3>About and history</h3>

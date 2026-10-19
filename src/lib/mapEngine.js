@@ -1,5 +1,5 @@
 // Draws the campus map and the route on an <svg>. Plain DOM drawing (fast, no re-render per frame).
-import { N, EDGES, BLDS } from './routing'
+import { N, EDGES, PEDGES, BLDS } from './routing'
 
 const NS = 'http://www.w3.org/2000/svg'
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
@@ -9,7 +9,8 @@ export class MapEngine {
     this.svg = svg; this.getBottomH = getBottomH; this.onPick = onPick
     this.vb = null; this.tween = 0; this.raf = 0; this.nav = null; this.me = null; this.places = []; this.labelsOn = true; this.lraf = 0
     this.ptrs = new Map(); this.moved = false
-    this.click = e => { if (this.nav || this.moved) return; const i = e.target.getAttribute && e.target.getAttribute('data-p'); if (i != null) this.onPick(+i) }
+    this.hidden = new Set()
+    this.click = e => { if (this.moved) return; const i = e.target.getAttribute && e.target.getAttribute('data-p'); if (i != null) this.onPick(+i) }
     this.down = e => { this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (this.ptrs.size === 1) this.moved = false; this.pinch = null }
     this.move = e => {
       const o = this.ptrs.get(e.pointerId); if (!o || this.nav || !this.vb) return
@@ -67,7 +68,7 @@ export class MapEngine {
     const rank = { Faculties: 0, Library: 1, Halls: 2, Offices: 3, Facilities: 4, Buildings: 5, Departments: 6 }
     this.bOf = {}; this.bEl = {}
     const owner = BLDS.map(() => null)
-    places.filter(p => p.x != null).forEach(p => { BLDS.forEach((poly, bi) => { if (inPoly(p, poly) && (owner[bi] == null || (rank[p.c] ?? 9) < (rank[places[owner[bi]].c] ?? 9))) owner[bi] = p.i }) })
+    places.filter(p => p.x != null && !p.inherit).forEach(p => { BLDS.forEach((poly, bi) => { if (inPoly(p, poly) && (owner[bi] == null || (rank[p.c] ?? 9) < (rank[places[owner[bi]].c] ?? 9))) owner[bi] = p.i }) })
     BLDS.forEach(poly => this.el('polygon', { points: poly.map(q => (q[0] + 1.3) + ',' + (q[1] + 1.7)).join(' '), fill: '#8D9ACB', opacity: .35 }, this.gB))   // soft shadow
     BLDS.forEach((poly, bi) => {
       const pts = poly.map(q => q.join(',')).join(' '), o = owner[bi]
@@ -76,8 +77,9 @@ export class MapEngine {
     })
     EDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: cssv('--roadEdge'), 'stroke-width': 9, 'stroke-linecap': 'round' }, this.gR))
     EDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: cssv('--road'), 'stroke-width': 6, 'stroke-linecap': 'round' }, this.gR))
+    PEDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '1 5', 'stroke-linecap': 'round', opacity: .95 }, this.gR))
     this.pin = {}; this.lab = []
-    places.filter(p => p.x != null).forEach(p => {
+    places.filter(p => p.x != null && !p.inherit).forEach(p => {
       this.pin[p.i] = this.el('circle', { cx: p.x, cy: p.y, r: 3.4, fill: p.v === 2 ? cssv('--gold') : cssv('--blue'), stroke: cssv('--card'), 'stroke-width': 1.2 }, this.gP)
       this.el('circle', { cx: p.x, cy: p.y, r: 12, fill: 'transparent', 'data-p': p.i, style: 'cursor:pointer' }, this.gP)
       const t = this.el('text', { 'text-anchor': 'middle', 'font-weight': 700, fill: cssv('--ink'), 'paint-order': 'stroke', stroke: '#fff', 'stroke-linejoin': 'round', display: 'none' }, this.gL)
@@ -100,6 +102,7 @@ export class MapEngine {
     this.selB = i
     if (i != null && this.bEl[i]) { this.bEl[i].setAttribute('fill', '#FFD866'); this.bEl[i].setAttribute('stroke', '#C98F00') }
   }
+  setHidden(names) { this.hidden = new Set(names); this.updateLabels() }
   showLabels(on) { this.labelsOn = on; this.updateLabels() }
   // Names on the map: constant size on screen, and only the ones that fit without overlapping
   updateLabels() {
@@ -109,7 +112,7 @@ export class MapEngine {
       const s = this.scale(), vx = this.vb[0], vy = this.vb[1], w = this.svg.clientWidth || 400, h = this.svg.clientHeight || 700, boxes = []
       const fs = 11 * s
       this.lab.forEach(({ p, t }) => {
-        let show = this.labelsOn
+        let show = this.labelsOn && !this.hidden.has(p.n)
         if (show) {
           const px = (p.x - vx) / s, py = (p.y - vy) / s
           const bw = t.textContent.length * 6.4 + 10, box = [px - bw / 2, py - 24, px + bw / 2, py - 8]
@@ -168,10 +171,10 @@ export class MapEngine {
     if (this.vb) this.tweenTo(t); else { this.vb = t; this.setVB(t) }
     if (to) this.labelAt(to, to.n, cssv('--pin'), (t[2] / (this.svg.clientWidth || 400)) * 1.2)
   }
-  showRoute(cur, a, b) {
+  showRoute(cur, a, b, fit = true) {
     this.clearRoute()
-    const pts = cur.pts, target = this.fit(pts, 40)
-    this.tweenTo(target)
+    const pts = cur.pts, target = fit || !this.vb ? this.fit(pts, 40) : this.vb
+    if (fit || !this.vb) this.tweenTo(target)
     const s = target[2] / (this.svg.clientWidth || 400), d = 'M' + pts.map(p => p.join(' ')).join(' L')
     this.el('path', { d, fill: 'none', stroke: cssv('--gold'), 'stroke-width': 7 * s, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, this.gRoute)
     this.labelAt(a, a.n, cssv('--blue'), s * 1.25); this.labelAt(b, b.n, cssv('--pin'), s * 1.25)

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../state'
 import { MapEngine } from '../lib/mapEngine'
-import { MODES, mins, project, route, snap } from '../lib/routing'
+import { MODES, mins, project, route, snap, snapRoad } from '../lib/routing'
 import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
 import { slugify, areaOf } from '../lib/places'
 import Icon from '../components/Icon'
@@ -20,6 +20,9 @@ export default function MapPage() {
   const toSlug = q.get('to')
   const initTo = toSlug ? places.findIndex(p => slugify(p.n) === toSlug) : -1
   const [to, setTo] = useState(initTo >= 0 ? initTo : null)
+  const toRef = useRef(null)
+  const [pick, setPick] = useState(null)             // place the person tapped while already going somewhere
+  const [shortcut, setShortcut] = useState(0)        // metres saved by a recorded footpath
   const [from, setFrom] = useState(null)
   const [mode, setMode] = useState('walk')
   const [sheet, setSheet] = useState(() => (q.get('credits') ? 'credits' : (asked.current ? null : 'perm')))
@@ -42,17 +45,18 @@ export default function MapPage() {
   const here = useMemo(() => {
     const g = gps.current; if (!g) return null
     let best = null, bs = 1e9
-    located.forEach(p => { const d = Math.hypot(p.x - g.x, p.y - g.y), r = areaOf(p); if (d <= r && d / r < bs) { bs = d / r; best = p } })
+    located.filter(p => !p.inherit).forEach(p => { const d = Math.hypot(p.x - g.x, p.y - g.y), r = areaOf(p); if (d <= r && d / r < bs) { bs = d / r; best = p } })
     return best
     // eslint-disable-next-line
   }, [gpsKey, located])
   const origin = from != null ? byIdx(from) : myLoc()
+  toRef.current = to
   const dest = to != null ? byIdx(to) : null
   const hasRoute = !!(dest && origin && dest !== origin)
 
   // create the map once
   useEffect(() => {
-    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { setTo(i) } })
+    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { if (toRef.current != null && toRef.current !== i) setPick(i); else setTo(i) } })
     eng.current = e
     return () => { stopWatch(); stopTrack(); e.destroy(); eng.current = null }
     // eslint-disable-next-line
@@ -96,19 +100,26 @@ export default function MapPage() {
   const stopWatch = () => { if (watchRef.current != null && navigator.geolocation) { try { navigator.geolocation.clearWatch(watchRef.current) } catch { /* ignore */ } } watchRef.current = null }
   const stopNav = useCallback(() => { stopWatch(); if (eng.current) eng.current.stopNav(); setNav(null); setRemain(null) }, [])
 
-  // draw the right thing when the choices change (not while walking)
-  const redraw = () => {
+  // Footpaths are for walking only. Keke and cars stay on the roads.
+  const pathFor = (a, b, m) => route(a, b, { roadsOnly: m !== 'walk' })
+  // draw the right thing when the choices change (not while walking). fit = move the view to the route.
+  const redraw = (fit = true) => {
     const e = eng.current
     if (!e || !e.gRoute || navState) return
-    if (!hasRoute) { curRef.current = null; e.showAll(dest); return }
-    curRef.current = route(origin, dest)
-    e.showRoute(curRef.current, origin, dest)
+    if (!hasRoute) { curRef.current = null; setShortcut(0); e.showAll(dest); return }
+    curRef.current = pathFor(origin, dest, modeRef.current)
+    e.showRoute(curRef.current, origin, dest, fit)
+    if (modeRef.current === 'walk' && !curRef.current.broken) {
+      const alt = route({ ...origin, s: snapRoad(origin) }, { ...dest, s: snapRoad(dest) }, { roadsOnly: true })
+      setShortcut(!alt.broken && alt.len - curRef.current.len > 20 ? alt.len - curRef.current.len : 0)
+    } else setShortcut(0)
   }
   useEffect(() => { redraw(); if (hasRoute && dest.id !== undefined) log({ type: 'directions_preview' }, dest) /* eslint-disable-next-line */ }, [to, from, places, testStart])
   // the start of the route follows you, but only when you have moved a fair bit, so the map does not jump around
   const gpsCoarse = gps.current ? Math.round(gps.current.x / 25) + ',' + Math.round(gps.current.y / 25) : ''
-  useEffect(() => { if (from == null && hasRoute && !navState) redraw() /* eslint-disable-next-line */ }, [gpsCoarse])
-  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showArea(dest, dest ? areaOf(dest) : 0); eng.current.showLabels(!hasRoute && !navState) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
+  useEffect(() => { if (from == null && hasRoute && !navState) redraw(false) /* eslint-disable-next-line */ }, [gpsCoarse])
+  useEffect(() => { if (hasRoute && !navState) redraw(false) /* eslint-disable-next-line */ }, [mode])
+  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showArea(dest, dest ? areaOf(dest) : 0); eng.current.showLabels(true); eng.current.setHidden(hasRoute ? [origin.n, dest.n] : (dest ? [dest.n] : [])) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
   useEffect(() => { if (navState) stopNav() /* eslint-disable-next-line */ }, [to, from])
 
   const lenNow = remain != null ? remain : (curRef.current ? curRef.current.len : 0)
@@ -133,7 +144,7 @@ export default function MapPage() {
       if (!real) { gps.current = null; toast(pos ? 'You are not on campus, so this is a test walk' : 'Location is off here, so this is a test walk') }
       const fr = real ? myLoc() : origin
       if (fr === dest) { toast('You are already there'); return }
-      curRef.current = route(fr, dest)
+      curRef.current = pathFor(fr, dest, modeRef.current)
       setNav({ real, done: false }); setRemain(curRef.current.len)
       log({ type: 'directions_start', mode: modeRef.current }, dest)
       const e = eng.current
@@ -149,7 +160,7 @@ export default function MapPage() {
             const la = p.coords.latitude, lo = p.coords.longitude
             if (!onCampus(la, lo) || !eng.current || !eng.current.nav) return
             const q2 = xy(la, lo), pt = { x: q2[0], y: q2[1] }, pr = project(curRef.current, pt)
-            if (pr.off > 40) { const me = { n: 'My location', x: pt.x, y: pt.y, s: snap(pt), v: 1 }; curRef.current = route(me, dest); eng.current.reroute(curRef.current, dest, pt); toast('Finding a new path'); return }
+            if (pr.off > 40) { const me = { n: 'My location', x: pt.x, y: pt.y, s: snap(pt), v: 1 }; curRef.current = pathFor(me, dest, modeRef.current); eng.current.reroute(curRef.current, dest, pt); toast('Finding a new path'); return }
             eng.current.setFix(pt, pr.d)
           }, () => {}, { enableHighAccuracy: true, maximumAge: 2000 })
         } catch { /* ignore */ }
@@ -157,7 +168,7 @@ export default function MapPage() {
     })
   }
   const end = () => { stopNav(); redraw(); if (gps.current) startTrack() }
-  useEffect(() => { if (!navState && eng.current && eng.current.gRoute) redraw() /* eslint-disable-next-line */ }, [navState])
+  useEffect(() => { if (!navState && eng.current && eng.current.gRoute) redraw(true) /* eslint-disable-next-line */ }, [navState])
 
   const opt = sel => located.map(p => <option key={p.i} value={p.i}>{p.n}{p.v === 2 ? ' (unverified)' : ''}</option>)
   const fromLabel = gps.current ? 'My location' + (here ? ' (' + here.n + ')' : '') : 'My location (test: School Park)'
@@ -218,6 +229,7 @@ export default function MapPage() {
                   <span className="mut">{lenNow >= 1000 ? (lenNow / 1000).toFixed(2) + ' km' : Math.round(lenNow) + ' m'}</span>
                 </div>
                 <div className="modes">{MODES.map(m => <button key={m.k} className="mode" onClick={() => setMode(m.k)} aria-pressed={mode === m.k}><b>{mins(lenNow, m.k)}</b><span>{m.n}</span></button>)}</div>
+                {shortcut > 0 && !navState && <span className="nowtag" style={{ justifySelf: 'start' }}>Includes a shortcut · {Math.round(shortcut)} m shorter than the main road</span>}
                 {!navState && <button className="btn gold block" onClick={start}><Icon n="nav" s={18} /> Start</button>}
                 {navState && <span className="nowtag" style={{ justifySelf: 'start' }}>{navState.real ? 'Following your location' : 'Test walk, moving by itself'}</span>}
                 {!navState && (dest.v === 2 || origin.v === 2) && <p className="demo" style={{ textAlign: 'left' }}>One end is not checked on site yet, so the path may be a little off.</p>}
@@ -236,6 +248,15 @@ export default function MapPage() {
         )}
       </div>
 
+      {pick != null && places[pick] && (
+        <Sheet onClose={() => setPick(null)}>
+          <h2>Go to {places[pick].n}?</h2>
+          <p className="mut" style={{ lineHeight: 1.45 }}>{places[pick].inherit ? 'Inside ' + places[pick].inherit : (places[pick].c === 'Departments' ? 'Faculty of ' + places[pick].f : places[pick].t)}. You are now heading to {dest ? dest.n : 'another place'}.</p>
+          <button className="btn blue block" onClick={() => { const i = pick; setPick(null); setTo(i) }}>Yes, take me to {places[pick].n}</button>
+          <button className="btn line block" onClick={() => { const sl = slugify(places[pick].n); setPick(null); nav('/place/' + sl) }}>See details</button>
+          <button className="btn line block" onClick={() => setPick(null)}>Keep going to {dest ? dest.n : 'where I was going'}</button>
+        </Sheet>
+      )}
       {sheet === 'perm' && (
         <Sheet onClose={() => setSheet(null)}>
           <span className="ic" style={{ width: 56, height: 56, borderRadius: 18 }}><Icon n="pin" s={26} /></span>

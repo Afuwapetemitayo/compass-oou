@@ -2,6 +2,8 @@
 // (real accounts, shared places, analytics). If not, it runs in TEST MODE on this device only.
 import { createClient } from '@supabase/supabase-js'
 import { seedPlaces, fromRows, toRow } from './places'
+import { setPaths } from './routing'
+import { xy } from './geo'
 
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -53,6 +55,8 @@ const sb = {
   },
   async touch(uid) { await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', uid) },
   async listPlaces() {
+    const pr = await supabase.from('paths').select('points').order('created_at')
+    setPaths(pr.error ? [] : pr.data, xy)          // shortcuts first, so each place snaps to the right spot
     const { data, error } = await supabase.from('places').select('*').order('sort_order').order('name')
     if (error) throw error
     return fromRows(data, photoUrl)
@@ -91,6 +95,9 @@ const sb = {
     return data
   },
   async setReportStatus(id, status) { const { error } = await supabase.from('reports').update({ status }).eq('id', id); if (error) throw error },
+  async listPaths() { const { data, error } = await supabase.from('paths').select('*').order('created_at', { ascending: false }); if (error) throw error; return data },
+  async savePath(pa) { const { error } = await supabase.from('paths').insert({ name: pa.name, points: pa.points }); if (error) throw error },
+  async deletePath(id) { const { error } = await supabase.from('paths').delete().eq('id', id); if (error) throw error },
   async listTips() { const { data, error } = await supabase.from('arrival_tips').select('*').order('sort_order').order('created_at'); if (error) throw error; return data },
   async saveTip(t) {
     const row = { title: t.title, body: t.body, sort_order: t.sort_order ?? 100 }
@@ -121,6 +128,7 @@ const local = {
   async saveProfile(_uid, { name, fac, dep, lv }) { const u = ls.get('user', {}); ls.set('user', { ...u, name, fac, dep, lv }) },
   async touch() {},
   async listPlaces() {
+    setPaths(ls.get('paths', []), xy)
     const base = seedPlaces()
     const edits = ls.get('edits', {}), extra = ls.get('extra', []), photos = ls.get('photos', {})
     extra.forEach(e => base.push({ ...e }))
@@ -144,6 +152,9 @@ const local = {
   async sendReport(_uid, r) { const l = ls.get('reports', []); l.unshift({ id: Date.now(), place_name: r.placeName || null, message: r.message, page: r.page || null, status: 'open', created_at: new Date().toISOString(), who: { full_name: (ls.get('user', {}) || {}).name, email: (ls.get('user', {}) || {}).email } }); ls.set('reports', l) },
   async listReports() { return ls.get('reports', []) },
   async setReportStatus(id, status) { ls.set('reports', ls.get('reports', []).map(r => r.id === id ? { ...r, status } : r)) },
+  async listPaths() { return ls.get('paths', []).map((p, i) => ({ id: p.id || 'p' + i, ...p })) },
+  async savePath(pa) { ls.set('paths', [{ id: 'p' + Date.now(), name: pa.name, points: pa.points, created_at: new Date().toISOString() }, ...ls.get('paths', [])]) },
+  async deletePath(id) { ls.set('paths', ls.get('paths', []).filter(p => p.id !== id)) },
   async listTips() { return ls.get('tips', DEFAULT_TIPS) },
   async saveTip(t) { const l = ls.get('tips', DEFAULT_TIPS); ls.set('tips', t.id ? l.map(x => x.id === t.id ? { ...x, ...t } : x) : [...l, { ...t, id: 't' + Date.now(), sort_order: t.sort_order ?? 100 }]) },
   async deleteTip(id) { ls.set('tips', ls.get('tips', DEFAULT_TIPS).filter(x => x.id !== id)) },
