@@ -171,3 +171,6 @@ h1{font-size:34px}
 .gh-dest{width:22px;height:22px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--gold);border:3px solid #0A1B4D;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .leaflet-tooltip.gh-tip{font-family:inherit;font-weight:700;color:var(--ink);border-radius:10px;border:0;box-shadow:0 4px 12px rgba(10,27,77,.25)}
 .leaflet-container{font-family:inherit}
+
+.herepill{position:absolute;top:-44px;left:12px;max-width:calc(100% - 70px);display:flex;align-items:center;gap:8px;border:0;border-radius:999px;background:var(--blue);color:#fff;padding:9px 14px;font-weight:700;font-size:14px;box-shadow:0 6px 16px rgba(10,27,77,.28);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.herepill i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(246,184,0,.35)}

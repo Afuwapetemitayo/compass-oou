@@ -61,7 +61,7 @@ export class MapEngine {
     const { svg } = this
     svg.replaceChildren()
     this.places = places
-    this.gB = this.el('g', {}); this.gR = this.el('g', {}); this.gP = this.el('g', {}); this.gL = this.el('g', { 'pointer-events': 'none' }); this.gRoute = this.el('g', {}); this.gMe = this.el('g', { 'pointer-events': 'none' })
+    this.gB = this.el('g', {}); this.gA = this.el('g', { 'pointer-events': 'none' }); this.gR = this.el('g', {}); this.gP = this.el('g', {}); this.gL = this.el('g', { 'pointer-events': 'none' }); this.gRoute = this.el('g', {}); this.gMe = this.el('g', { 'pointer-events': 'none' })
     // which building holds which place, so that building can be coloured and tapped
     const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > pt.y) !== (b[1] > pt.y) && pt.x < (b[0] - a[0]) * (pt.y - a[1]) / (b[1] - a[1]) + a[0]) c = !c } return c }
     const rank = { Faculties: 0, Library: 1, Halls: 2, Offices: 3, Facilities: 4, Buildings: 5, Departments: 6 }
@@ -86,6 +86,14 @@ export class MapEngine {
     })
     this.lab.sort((a, b) => a.r - b.r)
     this.drawMe(); this.updateLabels()
+  }
+  // soft circle that shows how big the place's area is
+  showArea(p, r) {
+    if (!this.gA) return
+    this.gA.replaceChildren()
+    if (!p || p.x == null) return
+    this.el('circle', { cx: p.x, cy: p.y, r, fill: '#F6B800', opacity: .18 }, this.gA)
+    this.el('circle', { cx: p.x, cy: p.y, r, fill: 'none', stroke: '#C98F00', 'stroke-width': 1.5, 'stroke-dasharray': '6 5', 'vector-effect': 'non-scaling-stroke' }, this.gA)
   }
   setSelected(i) {
     if (this.selB != null && this.bEl[this.selB]) this.bEl[this.selB].setAttribute('fill', '#C7D5FF')
@@ -205,7 +213,7 @@ export class MapEngine {
     const tg = [pt.x - vw / 2, pt.y - vh / 2 - off, vw, vh]
     this.vb = this.vb ? this.vb.map((v, i) => v + (tg[i] - v) * .14) : tg; this.setVB(this.vb)
     if (!n.u || now - n.u > 400) { n.u = now; n.opts.onTick(n.prog, n.L) }
-    if (n.L - n.prog < 12) { n.done = true; n.opts.onArrive(); return }
+    if (n.L - n.prog < (n.opts.arriveAt || 12)) { n.done = true; n.opts.onArrive(); return }
     n.raf = requestAnimationFrame(t => this.loop(t))
   }
   stopNav() { if (this.nav) { cancelAnimationFrame(this.nav.raf); this.nav = null; this.drawMe() } }

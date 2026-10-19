@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state'
 import { backend, hasSupabase } from '../lib/backend'
-import { CATS } from '../lib/places'
+import { CATS, areaOf } from '../lib/places'
 import { ll, xy, inOOUBounds } from '../lib/geo'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
@@ -136,6 +136,7 @@ function PlaceForm({ place: p, onDone }) {
   const [lng, setLng] = useState(lo0 === '' ? '' : lo0.toFixed(6))
   const [note, setNote] = useState(p ? p.note || '' : '')
   const [hist, setHist] = useState(p ? p.h || '' : '')
+  const [rad, setRad] = useState(p && p.r ? String(p.r) : '')
   const [tlabel, setTlabel] = useState(p ? p.t || '' : '')
   const [photo, setPhoto] = useState(null)            // { blob, data }
   const [busy, setBusy] = useState(false)
@@ -187,6 +188,8 @@ function PlaceForm({ place: p, onDone }) {
         if (np.x == null || Math.hypot(np.x - x, np.y - y) > .5) { np.x = x; np.y = y; np.v = 1 }
       }
       np.note = note.trim(); np.h = hist.trim(); if (tlabel.trim()) np.t = tlabel.trim()
+      const rn = parseInt(rad); np.r = rad.trim() === '' ? 0 : (isNaN(rn) || rn < 5 || rn > 500 ? null : rn)
+      if (np.r === null) { setBusy(false); return toast('Area size must be between 5 and 500 metres') }
       await backend.savePlace(np, photo && photo.blob, photo && photo.data)
       await reloadPlaces()
       toast('Saved. ' + np.n + (np.x != null ? ' is live' : ' needs a location'))
@@ -205,6 +208,7 @@ function PlaceForm({ place: p, onDone }) {
         <div className="field"><label htmlFor="p-lat">Latitude</label><input className="inp" id="p-lat" inputMode="decimal" value={lat} onChange={e => setLat(e.target.value)} placeholder="6.926624" /></div>
         <div className="field"><label htmlFor="p-lng">Longitude</label><input className="inp" id="p-lng" inputMode="decimal" value={lng} onChange={e => setLng(e.target.value)} placeholder="3.868849" /></div>
       </div>
+      <div className="field"><label htmlFor="p-rad">Area size in metres (optional)</label><input className="inp" id="p-rad" inputMode="numeric" value={rad} onChange={e => setRad(e.target.value)} placeholder={'Default: ' + areaOf(p || { c: cat }) + ' m'} /><span className="mut" style={{ fontSize: 12 }}>How far from the pin still counts as being at this place. A big faculty may need 80 to 100. Standing inside this circle, the app says "You are at …".</span></div>
       <button className="btn line block" style={{ minHeight: 48 }} onClick={useMyLocation} disabled={locating}><Icon n="pin" s={18} /> {locating ? 'Getting your position…' : 'Use my current location'}</button>
       {acc != null && <p className="demo" style={{ textAlign: 'left', marginTop: -4, color: acc > 20 ? '#7A5200' : 'var(--mintInk)' }}>{acc > 20 ? `Weak signal (±${acc} m). Move to open sky and tap again.` : `Position taken, accurate to about ${acc} m.`}</p>}
       <div className="field"><label htmlFor="p-note">Good to know</label><textarea className="inp" id="p-note" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Second floor, turn left" /></div>

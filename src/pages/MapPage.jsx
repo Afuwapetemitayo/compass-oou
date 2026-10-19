@@ -4,7 +4,7 @@ import { useApp } from '../state'
 import { MapEngine } from '../lib/mapEngine'
 import { MODES, mins, project, route, snap } from '../lib/routing'
 import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
-import { slugify } from '../lib/places'
+import { slugify, areaOf } from '../lib/places'
 import Icon from '../components/Icon'
 import { Sheet } from '../components/ui'
 
@@ -37,6 +37,15 @@ export default function MapPage() {
 
   const testStart = useMemo(() => places.find(p => p.n === 'School Park'), [places])
   const myLoc = () => gps.current ? { n: 'My location', x: gps.current.x, y: gps.current.y, s: snap(gps.current), v: 1 } : testStart
+  const gpsKey = gps.current ? Math.round(gps.current.x / 10) + ',' + Math.round(gps.current.y / 10) : ''
+  // which place's area are you standing in?
+  const here = useMemo(() => {
+    const g = gps.current; if (!g) return null
+    let best = null, bs = 1e9
+    located.forEach(p => { const d = Math.hypot(p.x - g.x, p.y - g.y), r = areaOf(p); if (d <= r && d / r < bs) { bs = d / r; best = p } })
+    return best
+    // eslint-disable-next-line
+  }, [gpsKey, located])
   const origin = from != null ? byIdx(from) : myLoc()
   const dest = to != null ? byIdx(to) : null
   const hasRoute = !!(dest && origin && dest !== origin)
@@ -97,9 +106,9 @@ export default function MapPage() {
   }
   useEffect(() => { redraw(); if (hasRoute && dest.id !== undefined) log({ type: 'directions_preview' }, dest) /* eslint-disable-next-line */ }, [to, from, places, testStart])
   // the start of the route follows you, but only when you have moved a fair bit, so the map does not jump around
-  const gpsKey = gps.current ? Math.round(gps.current.x / 20) + ',' + Math.round(gps.current.y / 20) : ''
-  useEffect(() => { if (from == null && hasRoute && !navState) redraw() /* eslint-disable-next-line */ }, [gpsKey])
-  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showLabels(!hasRoute && !navState) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
+  const gpsCoarse = gps.current ? Math.round(gps.current.x / 25) + ',' + Math.round(gps.current.y / 25) : ''
+  useEffect(() => { if (from == null && hasRoute && !navState) redraw() /* eslint-disable-next-line */ }, [gpsCoarse])
+  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showArea(dest, dest ? areaOf(dest) : 0); eng.current.showLabels(!hasRoute && !navState) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
   useEffect(() => { if (navState) stopNav() /* eslint-disable-next-line */ }, [to, from])
 
   const lenNow = remain != null ? remain : (curRef.current ? curRef.current.len : 0)
@@ -129,7 +138,7 @@ export default function MapPage() {
       log({ type: 'directions_start', mode: modeRef.current }, dest)
       const e = eng.current
       e.startNav(curRef.current, dest, {
-        real, start: { x: fr.x, y: fr.y },
+        real, start: { x: fr.x, y: fr.y }, arriveAt: Math.min(80, Math.max(12, areaOf(dest))),
         speed: () => MODES.find(m => m.k === modeRef.current).v / 3.6,
         onTick: (prog, L) => setRemain(Math.max(0, L - prog)),
         onArrive: () => { setNav({ real, done: true }); log({ type: 'directions_done', mode: modeRef.current }, dest) }
@@ -151,7 +160,7 @@ export default function MapPage() {
   useEffect(() => { if (!navState && eng.current && eng.current.gRoute) redraw() /* eslint-disable-next-line */ }, [navState])
 
   const opt = sel => located.map(p => <option key={p.i} value={p.i}>{p.n}{p.v === 2 ? ' (unverified)' : ''}</option>)
-  const fromLabel = gps.current ? 'My location' : 'My location (test: School Park)'
+  const fromLabel = gps.current ? 'My location' + (here ? ' (' + here.n + ')' : '') : 'My location (test: School Park)'
 
   return (
     <div id="mapbox" style={{ display: 'block' }}>
@@ -186,6 +195,7 @@ export default function MapPage() {
         ) : (
           <div className="msheet" id="msheet">
             <button className="info" onClick={() => setSheet('credits')} aria-label="Map credits">i</button>
+            {here && !navState && <button className="herepill" onClick={() => nav('/place/' + slugify(here.n))}><i /> You are at {here.n}</button>}
             {outside && !navState && !(dest && dest === origin) && (() => {
               const gate = places.find(p => p.n === 'School Park' && p.x != null) || places.find(p => /gate/i.test(p.n) && p.x != null)
               if (!gate) return null
