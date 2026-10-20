@@ -174,3 +174,12 @@ h1{font-size:34px}
 
 .herepill{position:absolute;top:-44px;left:12px;max-width:calc(100% - 70px);display:flex;align-items:center;gap:8px;border:0;border-radius:999px;background:var(--blue);color:#fff;padding:9px 14px;font-weight:700;font-size:14px;box-shadow:0 6px 16px rgba(10,27,77,.28);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .herepill i{flex:none;width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(246,184,0,.35)}
+
+.mtopw{display:grid;gap:8px}
+.mchips{display:flex;gap:8px;overflow-x:auto;padding:2px max(12px,env(safe-area-inset-left,0px)) 4px;scrollbar-width:none}
+.mchips::-webkit-scrollbar{display:none}
+.mchip{flex:none;display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:999px;border:0;background:var(--card);color:var(--ink);font-weight:600;font-size:13.5px;box-shadow:0 4px 12px rgba(10,27,77,.16)}
+.mchip i{width:10px;height:10px;border-radius:50%;display:block}
+.mchip[aria-pressed="true"]{background:var(--ink);color:#fff}
+.mctl{top:200px}
+@media (min-width:1000px){.mctl{top:16px}.mchips{padding-left:12px}}

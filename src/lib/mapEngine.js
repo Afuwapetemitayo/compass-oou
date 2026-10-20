@@ -2,6 +2,17 @@
 import { N, EDGES, PEDGES, BLDS } from './routing'
 
 const NS = 'http://www.w3.org/2000/svg'
+// colour per kind of place: pin colour, building tint, building outline
+export const PAL = {
+  Faculties: { pin: '#1B3FD6', fill: '#C9D6FF', line: '#8CA2EE' },
+  Departments: { pin: '#0284C7', fill: '#C8E8F8', line: '#7CBFE6' },
+  Halls: { pin: '#7C3AED', fill: '#E2D5FB', line: '#B79AEF' },
+  Library: { pin: '#0D9488', fill: '#C2EDE7', line: '#7DCDC3' },
+  Offices: { pin: '#EA580C', fill: '#FFDCC4', line: '#F2A877' },
+  Facilities: { pin: '#B7791F', fill: '#FBE9B7', line: '#E3C066' },
+  Buildings: { pin: '#475569', fill: '#D9DFEC', line: '#B4BEDC' }
+}
+export const palOf = c => PAL[c] || PAL.Buildings
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
 export class MapEngine {
@@ -72,16 +83,18 @@ export class MapEngine {
     BLDS.forEach(poly => this.el('polygon', { points: poly.map(q => (q[0] + 1.3) + ',' + (q[1] + 1.7)).join(' '), fill: '#8D9ACB', opacity: .35 }, this.gB))   // soft shadow
     BLDS.forEach((poly, bi) => {
       const pts = poly.map(q => q.join(',')).join(' '), o = owner[bi]
-      const e = this.el('polygon', { points: pts, fill: o != null ? '#C7D5FF' : cssv('--bld'), stroke: o != null ? '#7F98E8' : '#B4BEDC', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }, this.gB)
-      if (o != null) { e.setAttribute('data-p', o); e.style.cursor = 'pointer'; this.bEl[o] = e; this.bOf[o] = bi }
+      const pc = o != null ? palOf(places[o].c) : null
+      const e = this.el('polygon', { points: pts, fill: pc ? pc.fill : cssv('--bld'), stroke: pc ? pc.line : '#B4BEDC', 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }, this.gB)
+      if (o != null) { e.setAttribute('data-p', o); e.style.cursor = 'pointer'; this.bEl[o] = e; this.bOf[o] = bi; e._fill = pc.fill; e._line = pc.line }
     })
     EDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: cssv('--roadEdge'), 'stroke-width': 9, 'stroke-linecap': 'round' }, this.gR))
     EDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: cssv('--road'), 'stroke-width': 6, 'stroke-linecap': 'round' }, this.gR))
     PEDGES.forEach(([a, b]) => this.el('line', { x1: N[a][0], y1: N[a][1], x2: N[b][0], y2: N[b][1], stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '1 5', 'stroke-linecap': 'round', opacity: .95 }, this.gR))
-    this.pin = {}; this.lab = []
+    this.pin = {}; this.hit = {}; this.lab = []; this.filter = 'All'; this.keep = null
     places.filter(p => p.x != null && !p.inherit).forEach(p => {
-      this.pin[p.i] = this.el('circle', { cx: p.x, cy: p.y, r: 3.4, fill: p.v === 2 ? cssv('--gold') : cssv('--blue'), stroke: cssv('--card'), 'stroke-width': 1.2 }, this.gP)
-      this.el('circle', { cx: p.x, cy: p.y, r: 12, fill: 'transparent', 'data-p': p.i, style: 'cursor:pointer' }, this.gP)
+      const pc = palOf(p.c), solid = p.v !== 2     // hollow pin = not checked on site yet
+      this.pin[p.i] = this.el('circle', { cx: p.x, cy: p.y, r: 4, fill: solid ? pc.pin : '#fff', stroke: solid ? '#fff' : pc.pin, 'stroke-width': solid ? 1.5 : 2, 'vector-effect': 'non-scaling-stroke' }, this.gP)
+      this.hit[p.i] = this.el('circle', { cx: p.x, cy: p.y, r: 12, fill: 'transparent', 'data-p': p.i, style: 'cursor:pointer' }, this.gP)
       const t = this.el('text', { 'text-anchor': 'middle', 'font-weight': 700, fill: cssv('--ink'), 'paint-order': 'stroke', stroke: '#fff', 'stroke-linejoin': 'round', display: 'none' }, this.gL)
       t.textContent = p.n.replace('Department of ', '').replace('Faculty of ', '')
       this.lab.push({ p, t, r: rank[p.c] ?? 9 })
@@ -98,9 +111,14 @@ export class MapEngine {
     this.el('circle', { cx: p.x, cy: p.y, r, fill: 'none', stroke: '#C98F00', 'stroke-width': 1.5, 'stroke-dasharray': '6 5', 'vector-effect': 'non-scaling-stroke' }, this.gA)
   }
   setSelected(i) {
-    if (this.selB != null && this.bEl[this.selB]) this.bEl[this.selB].setAttribute('fill', '#C7D5FF')
+    if (this.selB != null && this.bEl[this.selB]) { const o = this.bEl[this.selB]; o.setAttribute('fill', o._fill); o.setAttribute('stroke', o._line) }
     this.selB = i
     if (i != null && this.bEl[i]) { this.bEl[i].setAttribute('fill', '#FFD866'); this.bEl[i].setAttribute('stroke', '#C98F00') }
+  }
+  // show only one kind of place (the one you are heading to always stays)
+  setFilter(cat, keep) {
+    this.filter = cat; this.keep = keep == null ? null : keep
+    this.updateLabels()
   }
   setHidden(names) { this.hidden = new Set(names); this.updateLabels() }
   showLabels(on) { this.labelsOn = on; this.updateLabels() }
@@ -110,9 +128,15 @@ export class MapEngine {
     this.lraf = requestAnimationFrame(() => {
       if (!this.lab || !this.vb) return
       const s = this.scale(), vx = this.vb[0], vy = this.vb[1], w = this.svg.clientWidth || 400, h = this.svg.clientHeight || 700, boxes = []
-      const fs = 11 * s
+      const fs = 11 * s, ok = p => this.filter === 'All' || p.c === this.filter || p.i === this.keep
+      this.places.forEach(p => {                       // pins keep the same size on screen at every zoom
+        const pin = this.pin[p.i], hit = this.hit[p.i]; if (!pin) return
+        const on = ok(p)
+        pin.setAttribute('r', 5.5 * s); hit.setAttribute('r', 15 * s)
+        if (on) { pin.removeAttribute('display'); hit.removeAttribute('display') } else { pin.setAttribute('display', 'none'); hit.setAttribute('display', 'none') }
+      })
       this.lab.forEach(({ p, t }) => {
-        let show = this.labelsOn && !this.hidden.has(p.n)
+        let show = this.labelsOn && !this.hidden.has(p.n) && ok(p)
         if (show) {
           const px = (p.x - vx) / s, py = (p.y - vy) / s
           const bw = t.textContent.length * 6.4 + 10, box = [px - bw / 2, py - 24, px + bw / 2, py - 8]

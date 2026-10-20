@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useApp } from '../state'
-import { MapEngine } from '../lib/mapEngine'
+import { MapEngine, PAL } from '../lib/mapEngine'
 import { MODES, mins, project, route, snap, snapRoad } from '../lib/routing'
 import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
 import { slugify, areaOf } from '../lib/places'
@@ -21,6 +21,8 @@ export default function MapPage() {
   const initTo = toSlug ? places.findIndex(p => slugify(p.n) === toSlug) : -1
   const [to, setTo] = useState(initTo >= 0 ? initTo : null)
   const toRef = useRef(null)
+  const [cat, setCat] = useState('All')                 // which kind of place to show
+  const [peek, setPeek] = useState(null)               // place tapped, shown in a preview card
   const [pick, setPick] = useState(null)             // place the person tapped while already going somewhere
   const [shortcut, setShortcut] = useState(0)        // metres saved by a recorded footpath
   const [from, setFrom] = useState(null)
@@ -51,12 +53,13 @@ export default function MapPage() {
   }, [gpsKey, located])
   const origin = from != null ? byIdx(from) : myLoc()
   toRef.current = to
+  useEffect(() => { if (to != null) setPeek(null) }, [to])
   const dest = to != null ? byIdx(to) : null
   const hasRoute = !!(dest && origin && dest !== origin)
 
   // create the map once
   useEffect(() => {
-    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { if (toRef.current != null && toRef.current !== i) setPick(i); else setTo(i) } })
+    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { if (toRef.current == null) setPeek(i); else if (toRef.current !== i) setPick(i) } })
     eng.current = e
     return () => { stopWatch(); stopTrack(); e.destroy(); eng.current = null }
     // eslint-disable-next-line
@@ -119,7 +122,7 @@ export default function MapPage() {
   const gpsCoarse = gps.current ? Math.round(gps.current.x / 25) + ',' + Math.round(gps.current.y / 25) : ''
   useEffect(() => { if (from == null && hasRoute && !navState) redraw(false) /* eslint-disable-next-line */ }, [gpsCoarse])
   useEffect(() => { if (hasRoute && !navState) redraw(false) /* eslint-disable-next-line */ }, [mode])
-  useEffect(() => { if (eng.current && eng.current.gRoute) { eng.current.setSelected(dest ? dest.i : null); eng.current.showArea(dest, dest ? areaOf(dest) : 0); eng.current.showLabels(true); eng.current.setHidden(hasRoute ? [origin.n, dest.n] : (dest ? [dest.n] : [])) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places])
+  useEffect(() => { if (eng.current && eng.current.gRoute) { const sel = dest || (peek != null ? places[peek] : null); eng.current.setSelected(sel ? sel.i : null); eng.current.showArea(sel, sel ? areaOf(sel) : 0); eng.current.setFilter(cat, sel ? sel.i : null); eng.current.showLabels(true); eng.current.setHidden(hasRoute ? [origin.n, dest.n] : (dest ? [dest.n] : [])) } /* eslint-disable-next-line */ }, [to, hasRoute, navState, places, peek, cat])
   useEffect(() => { if (navState) stopNav() /* eslint-disable-next-line */ }, [to, from])
 
   const lenNow = remain != null ? remain : (curRef.current ? curRef.current.len : 0)
@@ -185,9 +188,16 @@ export default function MapPage() {
       )}
       <div id="mapui">
         {!navState && (
+          <div className="mtopw">
           <div className="mtop">
             <div className="mrow"><label htmlFor="mfrom">From</label><select id="mfrom" value={from == null ? '' : from} onChange={e => setFrom(e.target.value === '' ? null : +e.target.value)}><option value="">{fromLabel}</option>{opt()}</select></div>
             <div className="mrow"><label htmlFor="mto">To</label><select id="mto" value={to == null ? '' : to} onChange={e => setTo(e.target.value === '' ? null : +e.target.value)}><option value="">Choose where you are going</option>{opt()}</select></div>
+          </div>
+          <div className="mchips" role="group" aria-label="Show on the map">
+            {['All', 'Faculties', 'Halls', 'Library', 'Offices', 'Facilities'].map(c => (
+              <button key={c} className="mchip" aria-pressed={cat === c} onClick={() => setCat(c)}>{c !== 'All' && <i style={{ background: PAL[c].pin }} />}{c}</button>
+            ))}
+          </div>
           </div>
         )}
         {navState && !navState.done && (
@@ -242,7 +252,18 @@ export default function MapPage() {
                   <button className="btn gold block" onClick={() => nav('/getting-here?to=' + slugify(dest.n))}><Icon n="nav" s={18} /> Show me the way</button>
                   <p className="demo" style={{ textAlign: 'left' }}>Already inside the school? Pick a different start in the From box.</p>
                 </div>
-              ) : <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a dot or choose a place'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Drag to move, pinch to zoom. Blue buildings are places you can tap. Gold dots are not checked on site yet.</p></div>
+              ) : peek != null && places[peek] && !dest ? (
+                <div style={{ display: 'grid', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                    <div style={{ minWidth: 0 }}><b style={{ fontSize: 18, overflowWrap: 'anywhere' }}>{places[peek].n}</b><div className="mut" style={{ marginTop: 2 }}>{places[peek].inherit ? 'Inside ' + places[peek].inherit : (places[peek].c === 'Departments' ? 'Faculty of ' + places[peek].f : places[peek].t)}</div></div>
+                    <button className="ib" style={{ width: 36, height: 36 }} onClick={() => setPeek(null)} aria-label="Close"><b style={{ fontSize: 18, lineHeight: 1 }}>×</b></button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn gold" style={{ flex: 1, minHeight: 48 }} onClick={() => { const i = peek; setPeek(null); setTo(i) }}><Icon n="nav" s={18} /> Directions</button>
+                    <button className="btn line" style={{ flex: 1, minHeight: 48 }} onClick={() => nav('/place/' + slugify(places[peek].n))}>Details</button>
+                  </div>
+                </div>
+              ) : <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a pin or a building'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Coloured buildings are places. Hollow pins are not checked on site yet. Use the buttons above to show one kind of place.</p></div>
             )}
           </div>
         )}
