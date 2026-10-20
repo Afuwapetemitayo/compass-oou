@@ -16,13 +16,13 @@ export const palOf = c => PAL[c] || PAL.Buildings
 const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim()
 
 export class MapEngine {
-  constructor(svg, { getBottomH, onPick }) {
-    this.svg = svg; this.getBottomH = getBottomH; this.onPick = onPick
+  constructor(svg, { getBottomH, onPick, onRot }) {
+    this.svg = svg; this.getBottomH = getBottomH; this.onPick = onPick; this.onRot = onRot; this.rot = 0; this.twist = 0; this.rotating = false; this.rl = []
     this.vb = null; this.tween = 0; this.raf = 0; this.nav = null; this.me = null; this.places = []; this.labelsOn = true; this.lraf = 0
     this.ptrs = new Map(); this.moved = false
     this.hidden = new Set()
     this.click = e => { if (this.moved) return; const i = e.target.getAttribute && e.target.getAttribute('data-p'); if (i != null) this.onPick(+i) }
-    this.down = e => { this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (this.ptrs.size === 1) this.moved = false; this.pinch = null }
+    this.down = e => { this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (this.ptrs.size === 1) this.moved = false; this.twist = 0; this.rotating = false }
     this.move = e => {
       const o = this.ptrs.get(e.pointerId); if (!o || this.nav || !this.vb) return
       const n = { x: e.clientX, y: e.clientY }
@@ -30,18 +30,19 @@ export class MapEngine {
         const dx = n.x - o.x, dy = n.y - o.y
         if (!this.moved && Math.hypot(dx, dy) < 6) return
         this.moved = true; cancelAnimationFrame(this.tween)
-        const sc = this.vb[2] / (this.svg.clientWidth || 400)
-        this.vb = [this.vb[0] - dx * sc, this.vb[1] - dy * sc, this.vb[2], this.vb[3]]; this.setVB(this.vb)
-        this.ptrs.set(e.pointerId, n)
+        this.gesture(o, n, 1, 0); this.ptrs.set(e.pointerId, n)
       } else if (this.ptrs.size === 2) {
         this.moved = true; cancelAnimationFrame(this.tween)
+        const other = [...this.ptrs.entries()].find(([id]) => id !== e.pointerId)[1]
+        const d0 = Math.hypot(o.x - other.x, o.y - other.y), d1 = Math.hypot(n.x - other.x, n.y - other.y)
+        let da = (Math.atan2(n.y - other.y, n.x - other.x) - Math.atan2(o.y - other.y, o.x - other.x)) * 180 / Math.PI
+        if (da > 180) da -= 360; if (da < -180) da += 360
+        if (!this.rotating) { this.twist += da; da = 0; if (Math.abs(this.twist) > 7) this.rotating = true }   // small wobbles do not turn the map
         this.ptrs.set(e.pointerId, n)
-        const [a, b] = [...this.ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y), mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2
-        if (this.pinch) this.zoomBy(this.pinch / d, mx, my)
-        this.pinch = d
+        if (d0 > 0 && d1 > 0) this.gesture({ x: (o.x + other.x) / 2, y: (o.y + other.y) / 2 }, { x: (n.x + other.x) / 2, y: (n.y + other.y) / 2 }, d1 / d0, da)
       }
     }
-    this.up = e => { this.ptrs.delete(e.pointerId); this.pinch = null; if (!this.ptrs.size) setTimeout(() => { this.moved = false }, 0) }
+    this.up = e => { this.ptrs.delete(e.pointerId); this.twist = 0; this.rotating = false; if (!this.ptrs.size) setTimeout(() => { this.moved = false }, 0) }
     this.wheel = e => { if (this.nav) return; e.preventDefault(); this.zoomBy(Math.exp(e.deltaY * .0015), e.clientX, e.clientY) }
     svg.addEventListener('click', this.click); svg.addEventListener('pointerdown', this.down); svg.addEventListener('pointermove', this.move)
     svg.addEventListener('pointerup', this.up); svg.addEventListener('pointercancel', this.up); svg.addEventListener('wheel', this.wheel, { passive: false })
@@ -53,14 +54,40 @@ export class MapEngine {
   }
   // metres per pixel at the current zoom
   scale() { return this.vb ? this.vb[2] / (this.svg.clientWidth || 400) : 1 }
-  // f > 1 zooms out, f < 1 zooms in; (cx, cy) is the screen point that stays put
-  zoomBy(f, cx, cy) {
+  // One gesture step: the map point that was under pm ends up under nm, scaled by ratio and turned by dAng degrees
+  gesture(pm, nm, ratio, dAng) {
     if (!this.vb) return
     const r = this.svg.getBoundingClientRect(), [x, y, w, h] = this.vb, sc = w / (r.width || 400)
-    const nsc = Math.min(3, Math.max(.07, sc * f)), k = nsc / sc
-    const px = cx == null ? r.width / 2 : cx - r.left, py = cy == null ? r.height / 2 : cy - r.top
-    const wx = x + px * sc, wy = y + py * sc
-    this.vb = [wx - px * nsc, wy - py * nsc, w * k, h * k]; this.setVB(this.vb)
+    const th = this.rot * Math.PI / 180, c0 = Math.cos(th), s0 = Math.sin(th)
+    const ax = (pm.x - r.left - r.width / 2) * sc, ay = (pm.y - r.top - r.height / 2) * sc
+    const Wx = x + w / 2 + ax * c0 + ay * s0, Wy = y + h / 2 - ax * s0 + ay * c0
+    const nsc = Math.min(3, Math.max(.07, sc / ratio)), k = nsc / sc
+    this.rot = ((this.rot + dAng) % 360 + 360) % 360
+    const t2 = this.rot * Math.PI / 180, c1 = Math.cos(t2), s1 = Math.sin(t2)
+    const bx = (nm.x - r.left - r.width / 2) * nsc, by = (nm.y - r.top - r.height / 2) * nsc
+    const Cx = Wx - (bx * c1 + by * s1), Cy = Wy - (-bx * s1 + by * c1)
+    this.vb = [Cx - w * k / 2, Cy - h * k / 2, w * k, h * k]; this.setVB(this.vb)
+  }
+  // f > 1 zooms out, f < 1 zooms in; (cx, cy) is the screen point that stays put
+  zoomBy(f, cx, cy) {
+    const r = this.svg.getBoundingClientRect(), p = { x: cx == null ? r.left + r.width / 2 : cx, y: cy == null ? r.top + r.height / 2 : cy }
+    this.gesture(p, p, 1 / f, 0)
+  }
+  // map point -> screen pixel (inside the svg), allowing for the turn
+  proj(x, y) {
+    const w = this.svg.clientWidth || 400, h = this.svg.clientHeight || 700, s = this.scale(), a = this.rot * Math.PI / 180
+    const dx = x - (this.vb[0] + this.vb[2] / 2), dy = y - (this.vb[1] + this.vb[3] / 2)
+    return [w / 2 + (dx * Math.cos(a) - dy * Math.sin(a)) / s, h / 2 + (dx * Math.sin(a) + dy * Math.cos(a)) / s]
+  }
+  // swing the map back so north is up
+  resetNorth() {
+    cancelAnimationFrame(this.tween)
+    const from = this.rot > 180 ? this.rot - 360 : this.rot, t0 = performance.now()
+    const step = now => {
+      const k = Math.min(1, (now - t0) / 300); this.rot = from * (1 - k); if (k >= 1) this.rot = 0
+      this.setVB(this.vb); if (k < 1) this.tween = requestAnimationFrame(step)
+    }
+    this.tween = requestAnimationFrame(step)
   }
   zoomStep(f) { cancelAnimationFrame(this.tween); this.zoomBy(f) }
   centerOn(pt, sc) {
@@ -73,7 +100,8 @@ export class MapEngine {
     const { svg } = this
     svg.replaceChildren()
     this.places = places
-    this.gB = this.el('g', {}); this.gA = this.el('g', { 'pointer-events': 'none' }); this.gR = this.el('g', {}); this.gP = this.el('g', {}); this.gL = this.el('g', { 'pointer-events': 'none' }); this.gRoute = this.el('g', {}); this.gMe = this.el('g', { 'pointer-events': 'none' })
+    const root = this.root = this.el('g', {}); this.rl = []
+    this.gB = this.el('g', {}, root); this.gA = this.el('g', { 'pointer-events': 'none' }, root); this.gR = this.el('g', {}, root); this.gP = this.el('g', {}, root); this.gL = this.el('g', { 'pointer-events': 'none' }, root); this.gRoute = this.el('g', {}, root); this.gMe = this.el('g', { 'pointer-events': 'none' }, root)
     // which building holds which place, so that building can be coloured and tapped
     const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], b = poly[j]; if ((a[1] > pt.y) !== (b[1] > pt.y) && pt.x < (b[0] - a[0]) * (pt.y - a[1]) / (b[1] - a[1]) + a[0]) c = !c } return c }
     const rank = { Faculties: 0, Library: 1, Halls: 2, Offices: 3, Facilities: 4, Buildings: 5, Departments: 6 }
@@ -138,12 +166,12 @@ export class MapEngine {
       this.lab.forEach(({ p, t }) => {
         let show = this.labelsOn && !this.hidden.has(p.n) && ok(p)
         if (show) {
-          const px = (p.x - vx) / s, py = (p.y - vy) / s
+          const [px, py] = this.proj(p.x, p.y)
           const bw = t.textContent.length * 6.4 + 10, box = [px - bw / 2, py - 24, px + bw / 2, py - 8]
           if (px < -20 || px > w + 20 || py < 0 || py > h || boxes.some(b => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) show = false
           else boxes.push(box)
         }
-        if (show) { t.setAttribute('x', p.x); t.setAttribute('y', p.y - 11 * s); t.setAttribute('font-size', fs); t.setAttribute('stroke-width', 3.2 * s); t.removeAttribute('display') }
+        if (show) { t.setAttribute('x', p.x); t.setAttribute('y', p.y - 11 * s); t.setAttribute('transform', `rotate(${-this.rot} ${p.x} ${p.y - 11 * s})`); t.setAttribute('font-size', fs); t.setAttribute('stroke-width', 3.2 * s); t.removeAttribute('display') }
         else t.setAttribute('display', 'none')
       })
     })
@@ -161,7 +189,13 @@ export class MapEngine {
     this.el('circle', { cx: m.x, cy: m.y, r: 6.2 * s, fill: cssv('--blue') }, this.gMe)
   }
   full() { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; N.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]) }); return [[x0, y0], [x1, y1]] }
-  setVB(v) { this.svg.setAttribute('viewBox', v.map(n => n.toFixed(1)).join(' ')); this.drawMe(); this.updateLabels() }
+  setVB(v) {
+    this.svg.setAttribute('viewBox', v.map(n => n.toFixed(1)).join(' '))
+    if (this.root) this.root.setAttribute('transform', this.rot ? `rotate(${this.rot.toFixed(2)} ${(v[0] + v[2] / 2).toFixed(1)} ${(v[1] + v[3] / 2).toFixed(1)})` : '')
+    this.rl.forEach(t => { const x = +t.getAttribute('x'), y = +t.getAttribute('y'); t.setAttribute('transform', this.rot ? `rotate(${-this.rot.toFixed(2)} ${x} ${y})` : '') })
+    if (this.onRot && this.rot !== this._lr) { this._lr = this.rot; this.onRot(this.rot) }
+    this.drawMe(); this.updateLabels()
+  }
   fit(pts, pad) {
     const w = this.svg.clientWidth || 400, h = this.svg.clientHeight || 700
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9
@@ -185,10 +219,10 @@ export class MapEngine {
   labelAt(p, txt, col, s) {
     const g = this.el('g', {}, this.gRoute)
     const t = this.el('text', { x: p.x, y: p.y - 14 * s, 'text-anchor': 'middle', 'font-size': 13 * s, 'font-weight': 700, fill: cssv('--ink'), 'paint-order': 'stroke', stroke: cssv('--card'), 'stroke-width': 4 * s, 'stroke-linejoin': 'round' }, g)
-    t.textContent = txt.replace('Department of ', 'Dept. ').replace('Faculty of ', 'Fac. ')
+    t.textContent = txt.replace('Department of ', 'Dept. ').replace('Faculty of ', 'Fac. '); this.rl.push(t)
     this.el('circle', { cx: p.x, cy: p.y, r: 7 * s, fill: col, stroke: cssv('--card'), 'stroke-width': 2.5 * s }, g)
   }
-  clearRoute() { this.stopNav(); this.gRoute.replaceChildren() }
+  clearRoute() { this.stopNav(); this.gRoute.replaceChildren(); this.rl = [] }
   showAll(to) {
     this.clearRoute()
     const b = this.full(), t = this.fit([b[0], b[1]], 20)
@@ -206,7 +240,7 @@ export class MapEngine {
   /* ---- live navigation ---- */
   drawNav(cur, b) {
     const n = this.nav, s = n.sN, pts = cur.pts, d = 'M' + pts.map(p => p.join(' ')).join(' L')
-    this.gRoute.replaceChildren(); cancelAnimationFrame(this.tween)
+    this.gRoute.replaceChildren(); this.rl = []; cancelAnimationFrame(this.tween)
     this.el('path', { d, fill: 'none', stroke: cssv('--blue'), 'stroke-width': 6 * s, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-dasharray': `${s} ${12 * s}`, opacity: .55 }, this.gRoute)
     n.trail = this.el('path', { d, fill: 'none', stroke: cssv('--gold'), 'stroke-width': 7 * s, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, this.gRoute)
     n.L = n.trail.getTotalLength(); n.trail.setAttribute('stroke-dasharray', `0 ${n.L + 50}`)
@@ -219,6 +253,7 @@ export class MapEngine {
   startNav(cur, b, opts) {
     this.clearRoute()
     this.gMe.replaceChildren()
+    if (this.rot) { this.rot = 0; if (this.vb) this.setVB(this.vb) }
     this.nav = { real: opts.real, prog: 0, t: 0, pt: { x: opts.start.x, y: opts.start.y }, done: false, sN: .26, opts }
     this.drawNav(cur, b)
     this.nav.raf = requestAnimationFrame(now => this.loop(now))

@@ -57,9 +57,10 @@ export default function MapPage() {
   const dest = to != null ? byIdx(to) : null
   const hasRoute = !!(dest && origin && dest !== origin)
 
+  const [rot, setRot] = useState(0)
   // create the map once
   useEffect(() => {
-    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { if (toRef.current == null) setPeek(i); else if (toRef.current !== i) setPick(i) } })
+    const e = new MapEngine(svgRef.current, { getBottomH: () => { const m = document.getElementById('msheet'); return (m && m.offsetHeight) || 240 }, onPick: i => { if (toRef.current == null) setPeek(i); else if (toRef.current !== i) setPick(i) }, onRot: d => setRot(Math.round(d)) })
     eng.current = e
     return () => { stopWatch(); stopTrack(); e.destroy(); eng.current = null }
     // eslint-disable-next-line
@@ -183,6 +184,7 @@ export default function MapPage() {
         <div className="mctl">
           <button className="ib" onClick={() => eng.current && eng.current.zoomStep(.6)} aria-label="Zoom in"><b style={{ fontSize: 22, lineHeight: 1 }}>+</b></button>
           <button className="ib" onClick={() => eng.current && eng.current.zoomStep(1 / .6)} aria-label="Zoom out"><b style={{ fontSize: 22, lineHeight: 1 }}>−</b></button>
+          {rot !== 0 && <button className="ib" onClick={() => eng.current && eng.current.resetNorth()} aria-label="Point north up"><svg width="26" height="26" viewBox="0 0 24 24" style={{ transform: `rotate(${rot}deg)` }}><path d="M12 2l4 10H8z" fill="#E5484D" /><path d="M12 22l-4-10h8z" fill="#9AA3BC" /></svg></button>}
           <button className="ib loc" onClick={locate} aria-label="Show where I am"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg></button>
         </div>
       )}
