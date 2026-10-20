@@ -199,8 +199,8 @@ export function Faq() {
         ))}
         <div className="card" style={{ display: 'grid', gap: 8 }}>
           <h3>University contacts</h3>
-          <a className="qa-link" href="tel:+2349135004446">+234 913 500 4446</a>
-          <a className="qa-link" href="tel:+2349135004447">+234 913 500 4447</a>
+          <a className="qa-link" href="tel:+2349156350646">+234 915 635 0646</a>
+          <a className="qa-link" href="tel:+23498155987016">+234 815 598 7016</a>
           <a className="qa-link" href="mailto:enquiry@oouagoiwoye.edu.ng">enquiry@oouagoiwoye.edu.ng</a>
         </div>
       </div>
