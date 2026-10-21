@@ -128,6 +128,8 @@ export class MapEngine {
       this.lab.push({ p, t, r: rank[p.c] ?? 9 })
     })
     this.lab.sort((a, b) => a.r - b.r)
+    if (this.nav && this.navCur) { const keep = this.nav.prog; this.drawNav(this.navCur, this.navB); this.nav.prog = keep }   // places reloaded while walking: put the route and arrow back
+    if (this.vb) this.setVB(this.vb)
     this.drawMe(); this.updateLabels()
   }
   // soft circle that shows how big the place's area is
@@ -239,6 +241,7 @@ export class MapEngine {
   }
   /* ---- live navigation ---- */
   drawNav(cur, b) {
+    this.navCur = cur; this.navB = b
     const n = this.nav, s = n.sN, pts = cur.pts, d = 'M' + pts.map(p => p.join(' ')).join(' L')
     this.gRoute.replaceChildren(); this.rl = []; cancelAnimationFrame(this.tween)
     this.el('path', { d, fill: 'none', stroke: cssv('--blue'), 'stroke-width': 6 * s, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-dasharray': `${s} ${12 * s}`, opacity: .55 }, this.gRoute)

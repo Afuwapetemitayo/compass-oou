@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { AppProvider } from './state'
 import './styles/app.css'
+import './lib/install'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

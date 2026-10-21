@@ -6,6 +6,7 @@ import { FACS } from '../lib/places'
 import Icon, { catIcon } from '../components/Icon'
 import { Badge, PlaceRow, View, Sheet, initials } from '../components/ui'
 import ReportSheet from '../components/ReportSheet'
+import { useInstall } from '../lib/install'
 
 export const placePath = p => '/place/' + slugify(p.n)
 const mapPath = p => '/map?to=' + slugify(p.n)
@@ -16,6 +17,9 @@ export function Home() {
   const { profile: u, places, pins, signOut, isAdmin, hasSupabase } = useApp()
   const [sheet, setSheet] = useState(false)
   const [report, setReport] = useState(false)
+  const [how, setHow] = useState(false)
+  const { state: inst, install } = useInstall()
+  const getApp = async () => { if (inst === 'ready') { await install() } else setHow(true) }
   const dp = places.find(p => p.n === 'Department of ' + u.dep)
   const pop = ['Motion Ground', 'School Park', 'Senate Building', 'University Library', 'Faculty of Science', 'Office of the University Registrar'].map(n => places.find(p => p.n === n)).filter(Boolean)
   const cats = [['Faculties', 'build'], ['Departments', 'build'], ['Halls', 'build'], ['Offices', 'build'], ['Library', 'build'], ['Facilities', 'pin']]
@@ -25,6 +29,7 @@ export function Home() {
       <div className="pad">
         <div className="top" style={{ padding: 0 }}>
           <div style={{ flex: 1, minWidth: 0 }}><div className="mut" style={{ fontSize: 13 }}>Hello,</div><h2>{(u.name || 'Student').split(' ')[0]}</h2></div>
+          {inst !== 'installed' && <button className="btn gold" style={{ minHeight: 36, padding: '0 12px', fontSize: 13, marginRight: 8 }} onClick={getApp}>Install app</button>}
           <button className="av" onClick={() => setSheet(true)} aria-label="Account">{initials(u.name)}</button>
         </div>
         <button className="search" onClick={() => nav('/directory')} style={{ textAlign: 'left', color: 'var(--muted)' }}><Icon n="search" /><span>Search any place on campus</span></button>
@@ -56,6 +61,7 @@ export function Home() {
             <div><b>{u.name}</b><div className="mut" style={{ fontSize: 13 }}>{u.dep || 'No department'} · {u.lv} level</div></div>
           </div>
           <button className="btn line block" onClick={() => nav('/signup?edit=1')}>Edit my details</button>
+          {inst !== 'installed' && <button className="btn gold block" onClick={() => { setSheet(false); getApp() }}>Install Compass on my phone</button>}
           {isAdmin && <button className="btn line block" onClick={() => nav('/admin')}>Admin dashboard{hasSupabase ? '' : ' (test)'}</button>}
           <button className="btn line block" onClick={() => { setSheet(false); setReport(true) }}>Report a problem</button>
           <button className="btn line block" onClick={() => { setSheet(false); nav('/map?credits=1') }}>About and map credits</button>
@@ -63,6 +69,15 @@ export function Home() {
         </Sheet>
       )}
       {report && <ReportSheet onClose={() => setReport(false)} />}
+      {how && (
+        <Sheet onClose={() => setHow(false)}>
+          <h3>Put Compass on your home screen</h3>
+          {inst === 'ios'
+            ? <ol className="mut" style={{ lineHeight: 1.7, paddingLeft: 20 }}><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>
+            : <ol className="mut" style={{ lineHeight: 1.7, paddingLeft: 20 }}><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>⋮ menu</b> at the top right.</li><li>Choose <b>Install app</b> (or <b>Add to Home screen</b>).</li></ol>}
+          <button className="btn blue block" onClick={() => setHow(false)}>Got it</button>
+        </Sheet>
+      )}
     </View>
   )
 }
@@ -199,8 +214,8 @@ export function Faq() {
         ))}
         <div className="card" style={{ display: 'grid', gap: 8 }}>
           <h3>University contacts</h3>
-          <a className="qa-link" href="tel:+2349156350646">+234 915 635 0646</a>
-          <a className="qa-link" href="tel:+23498155987016">+234 815 598 7016</a>
+          <a className="qa-link" href="tel:+2349135004446">+234 913 500 4446</a>
+          <a className="qa-link" href="tel:+2349135004447">+234 913 500 4447</a>
           <a className="qa-link" href="mailto:enquiry@oouagoiwoye.edu.ng">enquiry@oouagoiwoye.edu.ng</a>
         </div>
       </div>
