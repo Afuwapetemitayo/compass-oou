@@ -278,17 +278,19 @@ function Users() {
     if (u.role === 'admin') return toast(u.name + ' is already an admin')
     setRole(u, 'admin').then(() => setEm(''))
   }
+  const [seg, setSeg] = useState('all')       // all | done | todo
+  const done = u => !!(u.faculty && u.dept && u.level)
   const shown = useMemo(() => {
     const t = q.trim().toLowerCase()
-    return (list || []).filter(u => !t || [u.name, u.email, u.faculty, u.dept, u.level].some(v => (v || '').toLowerCase().includes(t)))
-  }, [list, q])
+    return (list || []).filter(u => (seg === 'all' || (seg === 'done') === done(u)) && (!t || [u.name, u.email, u.faculty, u.dept, u.level].some(v => (v || '').toLowerCase().includes(t))))
+  }, [list, q, seg])
   const day = d => d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not yet'
   const copy = async text => { try { await navigator.clipboard.writeText(text); toast('Copied') } catch { toast('Could not copy') } }
   const csv = () => {
     const esc = v => '"' + String(v ?? '').replace(/"/g, '""') + '"'
-    const rows = [['Name', 'Email', 'Faculty', 'Department', 'Level', 'Role', 'Joined', 'Last seen'], ...shown.map(u => [u.name, u.email, u.faculty, u.dept, u.level, u.role, u.joined, u.seen || ''])]
+    const rows = [['Name', 'Email', 'Faculty', 'Department', 'Level', 'Role', 'Registration', 'Joined', 'Last seen'], ...shown.map(u => [u.name, u.email, u.faculty, u.dept, u.level, u.role, done(u) ? 'Finished' : 'Not finished', u.joined, u.seen || ''])]
     const blob = new Blob([rows.map(r => r.map(esc).join(',')).join('\n')], { type: 'text/csv' })
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'compass-users.csv'; a.click(); URL.revokeObjectURL(a.href)
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'compass-users-' + seg + '.csv'; a.click(); URL.revokeObjectURL(a.href)
   }
   return (
     <>
@@ -305,6 +307,10 @@ function Users() {
       <div style={{ display: 'flex', gap: 8 }}>
         <input className="inp" style={{ flex: 1 }} placeholder="Search name, email, faculty…" value={q} onChange={e => setQ(e.target.value)} />
         <button className="btn line" style={{ minHeight: 44 }} onClick={csv} disabled={!shown.length}>Download CSV</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {[['all', 'Everyone', list ? list.length : 0], ['done', 'Finished', list ? list.filter(done).length : 0], ['todo', 'Not finished', list ? list.filter(u => !done(u)).length : 0]].map(([k, l, n]) => <button key={k} className={'btn ' + (seg === k ? 'blue' : 'line')} style={{ minHeight: 38, fontSize: 14, padding: '0 14px' }} onClick={() => setSeg(k)}>{l} ({n})</button>)}
+        <button className="btn line" style={{ minHeight: 38, fontSize: 14, padding: '0 14px' }} onClick={() => copy(shown.map(u => u.email).filter(Boolean).join(', '))} disabled={!shown.length}>Copy {shown.length} emails</button>
       </div>
       {list && !shown.length && <div className="card mut">No users found.</div>}
       <div style={{ display: 'grid', gap: 10 }}>
