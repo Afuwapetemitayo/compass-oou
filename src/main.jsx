@@ -5,6 +5,8 @@ import App from './App'
 import { AppProvider } from './state'
 import './styles/app.css'
 import './lib/install'
+import { trackVisit } from './lib/track'
+trackVisit()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

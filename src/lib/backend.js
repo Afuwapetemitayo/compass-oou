@@ -83,6 +83,7 @@ const sb = {
     if (on) await supabase.from('user_pins').upsert({ user_id: uid, place_id: placeId })
     else await supabase.from('user_pins').delete().eq('user_id', uid).eq('place_id', placeId)
   },
+  async logAnon(ev) { await supabase.from('events').insert(ev) },
   async logEvent(uid, ev) { if (uid) await supabase.from('events').insert({ user_id: uid, ...ev }) },
   async adminStats(days) { const { data, error } = await supabase.rpc('admin_stats', { days }); if (error) throw error; return data },
   async sendReport(uid, r) {

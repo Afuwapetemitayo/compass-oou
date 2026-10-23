@@ -7,7 +7,7 @@ import { ll, xy, inOOUBounds, distKm } from '../lib/geo'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
 
-const SAMPLE = { users_total: 1284, visits: 2887, visitors: 640, daily: [212, 260, 198, 310, 284, 342, 390].map((v, i) => ({ day: i, visits: v })), top_places: [['Motion Ground', 92], ['Department of Statistics', 71], ['University Library', 64], ['Registrar', 52], ['LLT2', 38]].map(([place, count]) => ({ place, count })), no_result_searches: ['hostel', 'bursary', 'chapel', 'bank', 'atm'].map(query => ({ query, count: 3 })), modes: [{ mode: 'walk', count: 58 }, { mode: 'keke', count: 27 }, { mode: 'car', count: 15 }], by_faculty: [] }
+const SAMPLE = { users_total: 700, users_done: 640, users_new: 210, signups_today: 38, visits_today: 410, visitors_today: 260, visits: 2887, visitors: 1640, returning: 520, active: 380, installs: 140, install_clicks: 210, tracking_since: '2026-10-24T08:00:00Z', daily: [212, 260, 198, 310, 284, 342, 390].map((v, i) => ({ day: new Date(Date.now() - (6 - i) * 864e5).toISOString().slice(0, 10), visits: v, visitors: Math.round(v * .62), signups: Math.round(v / 9) })), top_places: [['Motion Ground', 92], ['Department of Statistics', 71], ['University Library', 64], ['Registrar', 52], ['LLT2', 38]].map(([place, count]) => ({ place, count })), top_searches: [['library', 41], ['science', 33], ['registrar', 27], ['school park', 22]].map(([query, count]) => ({ query, count })), no_result_searches: ['hostel', 'bursary', 'chapel', 'bank', 'atm'].map(query => ({ query, count: 3 })), modes: [{ mode: 'walk', count: 58 }, { mode: 'keke', count: 27 }, { mode: 'car', count: 15 }], by_faculty: [] }
 
 export default function Admin() {
   const nav = useNavigate()
@@ -44,38 +44,57 @@ function Overview({ places }) {
   useEffect(() => {
     let dead = false
     setErr('')
-    backend.adminStats(range).then(r => { if (!dead) setS(r) }).catch(e => { if (!dead) setErr(e.message || 'Could not load numbers') })
+    backend.adminStats(range).then(r => { if (!dead) setS(r) }).catch(e => { if (!dead) setErr((e.message || 'Could not load numbers') + (/function|column|admin_stats/i.test(e.message || '') ? ' Did you run usage.sql?' : '')) })
     return () => { dead = true }
   }, [range])
   const sample = !hasSupabase
   const d = sample ? SAMPLE : s
   const live = places.filter(p => p.x != null).length
-  const bars = useMemo(() => {
-    if (!d) return []
-    if (sample) return d.daily.map(x => x.visits)
-    const map = new Map(d.daily.map(x => [String(x.day).slice(0, 10), x.visits]))
-    return Array.from({ length: range }, (_, i) => { const t = new Date(Date.now() - (range - 1 - i) * 864e5).toISOString().slice(0, 10); return map.get(t) || 0 })
-  }, [d, range, sample])
-  const mx = Math.max(1, ...bars)
   const tag = sample ? ' (sample)' : ''
+  const n = v => (v == null ? 0 : v).toLocaleString()
+  const pct = (a, b) => (b ? Math.round(a / b * 100) + '%' : '0%')
+  const daily = d ? d.daily || [] : []
+  const mx = Math.max(1, ...daily.map(x => x.visitors))
+  const dayName = x => new Date(String(x).slice(0, 10) + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
   const totalModes = d ? d.modes.reduce((a, b) => a + b.count, 0) : 0
+  const since = d && d.tracking_since ? new Date(d.tracking_since).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : null
+  const list = (rows, key) => rows && rows.length ? rows.map(t => <div key={t[key]} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ overflowWrap: 'anywhere' }}>{t[key]}</span><b>{t.count}</b></div>) : <span className="mut">Nothing yet</span>
   return (
     <>
-      <div className="seg">{[7, 14].map(n => <button key={n} aria-pressed={range === n} onClick={() => setRange(n)}>{n} days</button>)}</div>
+      <div className="seg">{[[1, 'Today'], [7, '7 days'], [30, '30 days'], [3650, 'All time']].map(([k, l]) => <button key={k} aria-pressed={range === k} onClick={() => setRange(k)}>{l}</button>)}</div>
       {err && <div className="card" style={{ color: '#C0392B' }}>{err}</div>}
       {!d && !err && <div className="card mut">Loading…</div>}
       {d && <>
-        <div className="stats">
-          <div className="card stat"><b>{d.users_total.toLocaleString()}</b><span>Registered students{tag}</span></div>
-          <div className="card stat"><b>{d.visits.toLocaleString()}</b><span>Visits, last {range} days{tag}</span></div>
-          <div className="card stat"><b>{d.visitors}</b><span>People who visited{tag}</span></div>
-          <div className="card stat"><b>{live}/{places.length}</b><span>Places on map</span></div>
+        <div className="card" style={{ background: 'var(--sun)', borderColor: 'var(--gold)', display: 'grid', gap: 4 }}>
+          <b>Today{tag}</b>
+          <span>{n(d.visitors_today)} people visited · {n(d.visits_today)} visits · {n(d.signups_today)} new sign-ups</span>
         </div>
-        <div className="card"><h3>Visits per day</h3><div className="bars" style={{ marginTop: 12 }}>{bars.map((v, i) => <i key={i} className={v === Math.max(...bars) && v > 0 ? 'pk' : ''} style={{ height: Math.max(4, Math.round(v / mx * 100)) + '%' }} title={v + ' visits'} />)}</div><div className="mut" style={{ fontSize: 12, marginTop: 6 }}>Peak: {Math.max(...bars)} visits</div></div>
-        <div className="card"><h3>Most opened places{tag}</h3><div style={{ display: 'grid', gap: 8, marginTop: 10 }}>{d.top_places.length ? d.top_places.map(t => <div key={t.place} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{t.place}</span><b>{t.count}</b></div>) : <span className="mut">Nothing yet</span>}</div></div>
-        <div className="card"><h3>Searches with no result{tag}</h3><p className="mut" style={{ marginTop: 8 }}>{d.no_result_searches.length ? d.no_result_searches.map(x => x.query).join(' · ') : 'None yet'}</p></div>
+        <div className="stats">
+          <div className="card stat"><b>{n(d.users_total)}</b><span>Registered, all time{tag}</span></div>
+          <div className="card stat"><b>{n(d.users_new)}</b><span>New sign-ups in this period{tag}</span></div>
+          <div className="card stat"><b>{n(d.visitors)}</b><span>People who visited{tag}</span></div>
+          <div className="card stat"><b>{n(d.visits)}</b><span>Visits{tag}</span></div>
+          <div className="card stat"><b>{n(d.active)}</b><span>Signed-in users seen{tag}</span></div>
+          <div className="card stat"><b>{n(d.returning)}</b><span>Came back on another day{tag}</span></div>
+          <div className="card stat"><b>{pct(d.users_done, d.users_total)}</b><span>Finished registration ({n(d.users_done)}){tag}</span></div>
+          <div className="card stat"><b>{n(d.installs)}</b><span>Installed the app{tag}</span></div>
+        </div>
+        <div className="card"><h3>People who visited, per day</h3>
+          <div className="bars" style={{ marginTop: 12 }}>{daily.map((x, i) => <i key={i} className={x.visitors === Math.max(...daily.map(y => y.visitors)) && x.visitors > 0 ? 'pk' : ''} style={{ height: Math.max(4, Math.round(x.visitors / mx * 100)) + '%' }} title={x.visitors + ' people, ' + x.signups + ' sign-ups'} />)}</div>
+          <div className="mut" style={{ fontSize: 12, marginTop: 6 }}>Last {daily.length} days (Lagos time){since ? '. Visit counting started ' + since + ', so earlier days show 0 visits.' : '.'}</div>
+        </div>
+        <div className="card"><h3>Day by day{tag}</h3>
+          <div style={{ display: 'grid', gap: 6, marginTop: 10, maxHeight: 320, overflow: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 6, fontSize: 12 }} className="mut"><span>Day</span><span>People</span><span>Visits</span><span>Sign-ups</span></div>
+            {[...daily].reverse().map(x => <div key={x.day} style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 6, fontSize: 14 }}><span>{dayName(x.day)}</span><b>{x.visitors}</b><span>{x.visits}</span><b style={{ color: 'var(--blue)' }}>{x.signups}</b></div>)}
+          </div>
+        </div>
+        <div className="card"><h3>Most searched{tag}</h3><div style={{ display: 'grid', gap: 8, marginTop: 10 }}>{list(d.top_searches, 'query')}</div></div>
+        <div className="card"><h3>Most opened places{tag}</h3><div style={{ display: 'grid', gap: 8, marginTop: 10 }}>{list(d.top_places, 'place')}</div></div>
+        <div className="card"><h3>Searches with no result{tag}</h3><p className="mut" style={{ marginTop: 8 }}>These are places students want that are missing or named differently.</p><div style={{ display: 'grid', gap: 8, marginTop: 8 }}>{list(d.no_result_searches, 'query')}</div></div>
         <div className="card"><h3>How students travel{tag}</h3><p className="mut" style={{ marginTop: 8 }}>{totalModes ? d.modes.map(m => `${m.mode === 'keke' ? 'Keke Napep' : m.mode[0].toUpperCase() + m.mode.slice(1)} ${Math.round(m.count / totalModes * 100)}%`).join(' · ') : 'No walks started yet'}</p></div>
         {d.by_faculty.length > 0 && <div className="card"><h3>Students by faculty</h3><div style={{ display: 'grid', gap: 8, marginTop: 10 }}>{d.by_faculty.map(f => <div key={f.faculty} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{f.faculty}</span><b>{f.users}</b></div>)}</div></div>}
+        <div className="card"><b>Places on map</b><div className="mut">{live} of {places.length} have a location</div></div>
         {sample && <p className="demo">Test mode: numbers marked sample are placeholders. With the database connected they are real.</p>}
       </>}
     </>

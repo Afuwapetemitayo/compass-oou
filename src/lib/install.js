@@ -19,6 +19,7 @@ export function useInstall() {
   const state = standalone() ? 'installed' : deferred ? 'ready' : isIOS() ? 'ios' : 'manual'
   const install = async () => {
     if (!deferred) return false
+    import('./track').then(m => m.track('install_click')).catch(() => {})
     deferred.prompt(); const r = await deferred.userChoice.catch(() => null); deferred = null; tell(); return !!r && r.outcome === 'accepted'
   }
   return { state, install }
