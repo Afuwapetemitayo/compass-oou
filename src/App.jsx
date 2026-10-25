@@ -67,6 +67,17 @@ function OpenToAll() {
   return <Outlet />
 }
 
+// The home page first offers sign-up, with "Continue as guest" as an option (remembered for a week).
+// Links that go straight to the map, a place or the directory (like the QR codes) open without this step.
+const GUEST_KEY = 'compass-guest'
+export const chooseGuest = () => { try { localStorage.setItem(GUEST_KEY, String(Date.now())) } catch { /* ignore */ } }
+const isGuestChosen = () => { try { const t = +localStorage.getItem(GUEST_KEY); return !!t && Date.now() - t < 7 * 864e5 } catch { return false } }
+function HomeGate() {
+  const { session } = useApp()
+  if (!session && !isGuestChosen()) return <Navigate to="/welcome" replace />
+  return <Home />
+}
+
 // Welcome / sign in pages: if you are already in, go home.
 function PublicOnly() {
   const { session, ready, profile } = useApp()
@@ -87,7 +98,7 @@ export default function App() {
         <Route path="/signup" element={<Signup />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route element={<OpenToAll />}>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<HomeGate />} />
           <Route path="/directory" element={<Directory />} />
           <Route path="/place/:slug" element={<Place />} />
           <Route path="/map" element={<MapPage />} />

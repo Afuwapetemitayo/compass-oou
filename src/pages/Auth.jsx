@@ -5,6 +5,7 @@ import { backend, localStore, hasSupabase } from '../lib/backend'
 import { FACS, DEPS } from '../lib/places'
 import Icon from '../components/Icon'
 import { View, GoogleIcon, CompassMark } from '../components/ui'
+import { chooseGuest } from '../App'
 
 const LEVELS = ['100', '200', '300', '400', '500', 'Postgraduate', 'Staff', 'Visitor']
 const OUTSIDER = lv => lv === 'Staff' || lv === 'Visitor'
@@ -32,10 +33,10 @@ export function Welcome() {
           <p style={{ fontSize: 16, lineHeight: 1.45, color: '#DCE5FF' }}>Every faculty, department, hall and office, with the path to get there.</p>
         </div>
         <div style={{ padding: '24px 24px calc(28px + env(safe-area-inset-bottom,0px))', display: 'grid', gap: 12 }}>
-          <button className="btn gold block" onClick={() => nav('/')}>Explore the map first</button>
           <button className="btn blue block" onClick={() => nav('/signup')}>Create an account</button>
           <button className="btn line block" onClick={google}><GoogleIcon /> Continue with Google</button>
           <button className="btn block" style={{ background: 'none', color: 'var(--muted)', fontWeight: 500, fontSize: 15, minHeight: 48 }} onClick={() => nav('/signin')}>Already registered? <b style={{ color: 'var(--blue)', marginLeft: 6 }}>Sign in</b></button>
+          <button className="btn line block" onClick={() => { chooseGuest(); nav('/') }}>Continue as guest</button>
           <div className="demo">Free for students, staff and visitors. No password.</div>
         </div>
       </div>
