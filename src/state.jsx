@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { backend, hasSupabase, localStore } from './lib/backend'
 import { slugify } from './lib/places'
+import { vid } from './lib/track'
 
 const Ctx = createContext(null)
 export const useApp = () => useContext(Ctx)
@@ -32,7 +33,13 @@ export function AppProvider({ children }) {
   const uid = session ? session.user.id : null
   useEffect(() => {
     if (session === undefined) return
-    if (!session) { setProfile(null); setPlaces([]); setPinKeys([]); setLoadedFor('none'); return }
+    if (!session) {
+      // guest: no account, but the map, directory and directions still work
+      let dead = false
+      setProfile(null); setPinKeys([])
+      backend.listPlaces().then(pl => { if (!dead) setPlaces(pl) }).catch(e => { console.error(e); if (!dead) toast('Could not load. Check your internet and refresh.') }).finally(() => { if (!dead) setLoadedFor('none') })
+      return () => { dead = true }
+    }
     let dead = false
     ;(async () => {
       try {
@@ -60,7 +67,11 @@ export function AppProvider({ children }) {
   const reloadPlaces = useCallback(async () => { setPlaces(await backend.listPlaces()) }, [])
   const reloadProfile = useCallback(async () => { if (session) setProfile(await backend.loadProfile(session)) }, [session])
 
-  const log = useCallback((ev, place) => { if (uid) backend.logEvent(uid, { ...ev, place_id: place && place.id ? place.id : null }).catch(() => {}) }, [uid])
+  const log = useCallback((ev, place) => {
+    const place_id = place && place.id ? place.id : null
+    if (uid) backend.logEvent(uid, { ...ev, place_id }).catch(() => {})
+    else if (backend.logAnon) Promise.resolve(backend.logAnon({ ...ev, place_id, vid: vid() })).catch(() => {})   // guest: counted by phone id only
+  }, [uid])
 
   const saveProfile = useCallback(async ({ name, fac, dep, lv }) => {
     const dp = places.find(p => p.n === 'Department of ' + dep)
@@ -70,6 +81,7 @@ export function AppProvider({ children }) {
   }, [uid, places, pinKeys, reloadProfile])
 
   const togglePin = useCallback(async p => {
+    if (!uid) { toast('Create a free account to pin your department'); return }
     const on = !pinKeys.includes(pk(p))
     await backend.setPin(uid, pk(p), on)
     setPinKeys(k => on ? [pk(p), ...k] : k.filter(x => x !== pk(p)))

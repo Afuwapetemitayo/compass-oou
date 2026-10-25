@@ -11,6 +11,7 @@ export default function ReportSheet({ place, onClose }) {
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const send = async () => {
+    if (!session) return toast('Create a free account to send a report')
     if (msg.trim().length < 3) return toast('Write a few words about the problem')
     setBusy(true)
     try {

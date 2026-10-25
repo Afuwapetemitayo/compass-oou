@@ -43,7 +43,7 @@ function Layout() {
   )
 }
 
-const profileDone = p => p && p.fac && p.dep
+const profileDone = p => p && ((p.fac && p.dep) || p.lv === 'Staff' || p.lv === 'Visitor')
 
 function Splash() {
   return <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}><span style={{ width: 56, height: 56, borderRadius: 18, background: 'var(--blue)', display: 'grid', placeItems: 'center' }}><CompassMark size={30} /></span></div>
@@ -56,6 +56,14 @@ function RequireAuth({ admin }) {
   if (!session) return <Navigate to="/welcome" replace />
   if (!profileDone(profile)) return <Navigate to="/signup?complete=1" replace />
   if (admin && !isAdmin) return <Navigate to="/" replace />
+  return <Outlet />
+}
+
+// Map, directory and directions: open to everyone. Signed-in people with a half-finished profile are sent to finish it.
+function OpenToAll() {
+  const { session, ready, profile } = useApp()
+  if (session === undefined || !ready) return <Splash />
+  if (session && !profileDone(profile)) return <Navigate to="/signup?complete=1" replace />
   return <Outlet />
 }
 
@@ -78,7 +86,7 @@ export default function App() {
         </Route>
         <Route path="/signup" element={<Signup />} />
         <Route path="/privacy" element={<Privacy />} />
-        <Route element={<RequireAuth />}>
+        <Route element={<OpenToAll />}>
           <Route path="/" element={<Home />} />
           <Route path="/directory" element={<Directory />} />
           <Route path="/place/:slug" element={<Place />} />

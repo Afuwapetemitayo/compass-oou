@@ -6,7 +6,9 @@ import { FACS, DEPS } from '../lib/places'
 import Icon from '../components/Icon'
 import { View, GoogleIcon, CompassMark } from '../components/ui'
 
-const LEVELS = ['100', '200', '300', '400', '500', 'Postgraduate']
+const LEVELS = ['100', '200', '300', '400', '500', 'Postgraduate', 'Staff', 'Visitor']
+const OUTSIDER = lv => lv === 'Staff' || lv === 'Visitor'
+const profileOk = p => p && ((p.fac && p.dep) || OUTSIDER(p.lv))
 const okEmail = e => /.+@.+\..+/.test(e || '')
 const niceError = e => {
   const m = (e && e.message) || String(e || '')
@@ -30,10 +32,11 @@ export function Welcome() {
           <p style={{ fontSize: 16, lineHeight: 1.45, color: '#DCE5FF' }}>Every faculty, department, hall and office, with the path to get there.</p>
         </div>
         <div style={{ padding: '24px 24px calc(28px + env(safe-area-inset-bottom,0px))', display: 'grid', gap: 12 }}>
+          <button className="btn gold block" onClick={() => nav('/')}>Explore the map first</button>
           <button className="btn blue block" onClick={() => nav('/signup')}>Create an account</button>
           <button className="btn line block" onClick={google}><GoogleIcon /> Continue with Google</button>
           <button className="btn block" style={{ background: 'none', color: 'var(--muted)', fontWeight: 500, fontSize: 15, minHeight: 48 }} onClick={() => nav('/signin')}>Already registered? <b style={{ color: 'var(--blue)', marginLeft: 6 }}>Sign in</b></button>
-          <div className="demo">Free for OOU students. No password.</div>
+          <div className="demo">Free for students, staff and visitors. No password.</div>
         </div>
       </div>
     </View>
@@ -57,8 +60,8 @@ export function Signup() {
 
   if (session === undefined || (session && !ready)) return null
   if (loggedMode && !session) return <Navigate to="/welcome" replace />
-  if (completing && profile && profile.fac && profile.dep) return <Navigate to="/" replace />
-  if (!loggedMode && session && profile && profile.fac && profile.dep) return <Navigate to="/" replace />
+  if (completing && profileOk(profile)) return <Navigate to="/" replace />
+  if (!loggedMode && session && profileOk(profile)) return <Navigate to="/" replace />
   if (!loggedMode && session) return <Navigate to="/signup?complete=1" replace />
 
   const set = k => e => setF(o => ({ ...o, [k]: e.target.value, ...(k === 'fac' ? { dep: '' } : {}) }))
@@ -66,7 +69,7 @@ export function Signup() {
   const google = async () => { try { await backend.google() } catch (e) { toast(niceError(e)) } }
 
   const submit = async () => {
-    const bad = !f.name.trim() ? 'Enter your full name' : (!loggedMode && !okEmail(f.email)) ? 'Enter a valid email' : !f.fac ? 'Choose your faculty' : !f.dep ? 'Choose your department' : !f.lv ? 'Choose your level' : ''
+    const bad = !f.name.trim() ? 'Enter your full name' : (!loggedMode && !okEmail(f.email)) ? 'Enter a valid email' : !f.lv ? 'Choose your level, or Staff / Visitor' : (!OUTSIDER(f.lv) && !f.fac) ? 'Choose your faculty' : (!OUTSIDER(f.lv) && !f.dep) ? 'Choose your department' : ''
     setErr(bad); if (bad) return
     setBusy(true)
     try {
@@ -90,9 +93,9 @@ export function Signup() {
         {!loggedMode && <><button className="btn line block" onClick={google}><GoogleIcon /> Continue with Google</button><div className="demo">or use your email</div></>}
         <div className="field"><label htmlFor="f-name">Full name</label><input className="inp" id="f-name" value={f.name} onChange={set('name')} placeholder="e.g. Adebayo Tolu" autoComplete="name" /></div>
         {!loggedMode && <div className="field"><label htmlFor="f-email">Email</label><input className="inp" id="f-email" type="email" value={f.email} onChange={set('email')} placeholder="you@gmail.com" autoComplete="email" /></div>}
-        <div className="field"><label htmlFor="f-fac">Faculty</label><select className="inp" id="f-fac" value={f.fac} onChange={set('fac')}><option value="">Choose faculty</option>{FACS.map(x => <option key={x}>{x}</option>)}</select></div>
-        <div className="field"><label htmlFor="f-dep">Department</label><select className="inp" id="f-dep" value={f.dep} onChange={set('dep')} disabled={!f.fac}><option value="">{f.fac ? 'Choose department' : 'Pick a faculty first'}</option>{deps.map(x => <option key={x}>{x}</option>)}</select></div>
-        <div className="field"><label htmlFor="f-lv">Level</label><select className="inp" id="f-lv" value={f.lv} onChange={set('lv')}><option value="">Choose level</option>{LEVELS.map(x => <option key={x}>{x}</option>)}</select></div>
+        <div className="field"><label htmlFor="f-lv">I am a</label><select className="inp" id="f-lv" value={f.lv} onChange={set('lv')}><option value="">Choose one</option>{LEVELS.map(x => <option key={x} value={x}>{OUTSIDER(x) ? x : x + ' level'}</option>)}</select></div>
+        <div className="field"><label htmlFor="f-fac">Faculty{OUTSIDER(f.lv) ? ' (optional)' : ''}</label><select className="inp" id="f-fac" value={f.fac} onChange={set('fac')}><option value="">Choose faculty</option>{FACS.map(x => <option key={x}>{x}</option>)}</select></div>
+        <div className="field"><label htmlFor="f-dep">Department{OUTSIDER(f.lv) ? ' (optional)' : ''}</label><select className="inp" id="f-dep" value={f.dep} onChange={set('dep')} disabled={!f.fac}><option value="">{f.fac ? 'Choose department' : 'Pick a faculty first'}</option>{deps.map(x => <option key={x}>{x}</option>)}</select></div>
         <p className="demo" id="f-err" style={{ color: '#C0392B' }} role="alert">{err}</p>
         <button className="btn blue block" onClick={submit} disabled={busy}>{busy ? 'Please wait…' : loggedMode ? 'Save and continue' : 'Send me a code'}</button>
         {!loggedMode && <div className="demo">By continuing you agree to the <a href="/privacy" target="_blank" rel="noreferrer" style={{ color: 'var(--blue)', fontWeight: 700 }}>privacy notice</a>.</div>}

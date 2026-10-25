@@ -20,7 +20,8 @@ export function Home() {
   const [how, setHow] = useState(false)
   const { state: inst, install } = useInstall()
   const getApp = async () => { if (inst === 'ready') { await install() } else setHow(true) }
-  const dp = places.find(p => p.n === 'Department of ' + u.dep)
+  const guest = !u
+  const dp = u && places.find(p => p.n === 'Department of ' + u.dep)
   const pop = ['Motion Ground', 'School Park', 'Senate Building', 'University Library', 'Faculty of Science', 'Office of the University Registrar'].map(n => places.find(p => p.n === n)).filter(Boolean)
   const cats = [['Faculties', 'build'], ['Departments', 'build'], ['Halls', 'build'], ['Offices', 'build'], ['Library', 'build'], ['Facilities', 'pin']]
   const open = p => nav(placePath(p))
@@ -28,9 +29,11 @@ export function Home() {
     <View>
       <div className="pad">
         <div className="top" style={{ padding: 0 }}>
-          <div style={{ flex: 1, minWidth: 0 }}><div className="mut" style={{ fontSize: 13 }}>Hello,</div><h2>{(u.name || 'Student').split(' ')[0]}</h2></div>
+          <div style={{ flex: 1, minWidth: 0 }}><div className="mut" style={{ fontSize: 13 }}>{guest ? 'Welcome to' : 'Hello,'}</div><h2>{guest ? 'Compass OOU' : (u.name || 'Student').split(' ')[0]}</h2></div>
           {inst !== 'installed' && <button className="btn gold" style={{ minHeight: 36, padding: '0 12px', fontSize: 13, marginRight: 8 }} onClick={getApp}>Install app</button>}
-          <button className="av" onClick={() => setSheet(true)} aria-label="Account">{initials(u.name)}</button>
+          {guest
+            ? <button className="btn blue" style={{ minHeight: 36, padding: '0 14px', fontSize: 13 }} onClick={() => nav('/signup')}>Sign up</button>
+            : <button className="av" onClick={() => setSheet(true)} aria-label="Account">{initials(u.name)}</button>}
         </div>
         <button className="search" onClick={() => nav('/directory')} style={{ textAlign: 'left', color: 'var(--muted)' }}><Icon n="search" /><span>Search any place on campus</span></button>
         <button className="card" onClick={() => nav('/arrive')} style={{ display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', background: 'var(--sun)', borderColor: 'var(--gold)' }}>
@@ -43,6 +46,12 @@ export function Home() {
             <h2 style={{ color: '#fff' }}>{dp.n}</h2>
             <span style={{ opacity: .85 }}>{sub(dp)}</span>
             {dp.x != null ? <button className="btn gold" onClick={() => nav(mapPath(dp))}><Icon n="nav" s={18} /> Directions</button> : <span className="pill off">Location coming soon</span>}
+          </div>
+        ) : guest ? (
+          <div className="card" style={{ display: 'grid', gap: 10 }}>
+            <b>Make Compass yours</b>
+            <p className="mut" style={{ margin: 0, fontSize: 14 }}>Create a free account to pin your department and get it on your home screen. You can use everything else without one.</p>
+            <div style={{ display: 'flex', gap: 10 }}><button className="btn blue" style={{ flex: 1 }} onClick={() => nav('/signup')}>Create account</button><button className="btn line" style={{ flex: 1 }} onClick={() => nav('/signin')}>Sign in</button></div>
           </div>
         ) : <div className="card"><b>No department yet</b><p className="mut">Pin yours from the Directory.</p></div>}
         <div>
@@ -58,7 +67,7 @@ export function Home() {
         <Sheet onClose={() => setSheet(false)}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <span className="av">{initials(u.name)}</span>
-            <div><b>{u.name}</b><div className="mut" style={{ fontSize: 13 }}>{u.dep || 'No department'} · {u.lv} level</div></div>
+            <div><b>{u.name}</b><div className="mut" style={{ fontSize: 13 }}>{u.dep || (u.lv === 'Staff' || u.lv === 'Visitor' ? u.lv : 'No department')}{u.lv && u.lv !== 'Staff' && u.lv !== 'Visitor' ? ' · ' + u.lv + ' level' : ''}</div></div>
           </div>
           <button className="btn line block" onClick={() => nav('/signup?edit=1')}>Edit my details</button>
           {inst !== 'installed' && <button className="btn gold block" onClick={() => { setSheet(false); getApp() }}>Install Compass on my phone</button>}
