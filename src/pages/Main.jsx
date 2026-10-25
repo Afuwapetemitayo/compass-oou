@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '../state'
+import { shareLink } from '../lib/share'
 import { CATS, sub, slugify } from '../lib/places'
 import { FACS } from '../lib/places'
 import Icon, { catIcon } from '../components/Icon'
@@ -138,7 +139,7 @@ export function Directory() {
 export function Place() {
   const nav = useNavigate()
   const { slug } = useParams()
-  const { bySlug, pins, togglePin, log } = useApp()
+  const { bySlug, pins, togglePin, log, toast } = useApp()
   const [report, setReport] = useState(false)
   const p = bySlug(slug)
   useEffect(() => { if (p) log({ type: 'place_view' }, p) /* eslint-disable-next-line */ }, [slug])
@@ -160,6 +161,7 @@ export function Place() {
           <>
             <button className="btn gold block" onClick={() => nav(mapPath(p))}><Icon n="nav" s={18} /> Get directions</button>
             <button className="btn line block" onClick={() => nav(mapPath(p))}><Icon n="map" s={18} /> Show on map</button>
+            <button className="btn line block" onClick={() => shareLink({ title: p.n + ' · Compass OOU', text: 'Meet at ' + p.n + ' (OOU). Tap for directions on Compass:', url: location.origin + mapPath(p) }, toast)}><Icon n="pin" s={18} /> Share this place</button>
           </>
         ) : <div className="card"><b>Location coming soon</b><p className="mut" style={{ marginTop: 4 }}>We have not captured this place on site yet. You can still ask at the faculty office.</p></div>}
         {p.inherit && <div className="card" style={{ background: 'var(--tint)' }}><b>Inside {p.inherit}</b><p className="mut" style={{ marginTop: 4 }}>This department is in the faculty building. The map takes you to the building. Ask at the faculty office or follow the signs for the exact hall.</p></div>}

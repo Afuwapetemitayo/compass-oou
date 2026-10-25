@@ -6,12 +6,25 @@ import { MODES, mins, project, route, snap, snapRoad } from '../lib/routing'
 import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
 import { slugify, areaOf } from '../lib/places'
 import Icon from '../components/Icon'
+import { shareLink } from '../lib/share'
 import { Sheet } from '../components/ui'
 
 export default function MapPage() {
   const nav = useNavigate()
   const [q, setQ] = useSearchParams()
-  const { places, gps, asked, toast, log } = useApp()
+  const { places: basePlaces, gps, asked, toast, log } = useApp()
+  // A friend can share the spot where they are standing: it opens here as "Shared spot".
+  const shared = useMemo(() => {
+    const m = /^(-?\d+\.?\d*),(-?\d+\.?\d*)$/.exec(q.get('at') || ''); if (!m) return null
+    const la = +m[1], lo = +m[2]; if (!onCampus(la, lo)) return null
+    const [x, y] = xy(la, lo); return { la, lo, x, y, l: (q.get('l') || '').slice(0, 60) }
+    // eslint-disable-next-line
+  }, [])
+  const places = useMemo(() => {
+    if (!shared || !basePlaces.length) return basePlaces
+    const pt = { id: 'shared-spot', slug: 'shared-spot', n: 'Shared spot', c: 'Facilities', t: 'Shared by a friend', f: '', a: '', k: 0, x: shared.x, y: shared.y, lat: shared.la, lng: shared.lo, v: 1, note: shared.l ? 'Near ' + shared.l : '', h: '', r: 0, photo: null, inherit: null, shared: true, i: basePlaces.length }
+    pt.s = snap(pt); return [...basePlaces, pt]
+  }, [basePlaces, shared])
   const svgRef = useRef(null)
   const eng = useRef(null)
   const located = useMemo(() => places.filter(p => p.x != null).sort((a, b) => a.n.localeCompare(b.n)), [places])
@@ -175,6 +188,13 @@ export default function MapPage() {
   useEffect(() => { if (!navState && eng.current && eng.current.gRoute) redraw(true) /* eslint-disable-next-line */ }, [navState])
 
   const opt = sel => located.map(p => <option key={p.i} value={p.i}>{p.n}{p.v === 2 ? ' (unverified)' : ''}</option>)
+  // one tap, you choose who gets it: sends a link that opens the map at the spot you are standing on
+  const shareMe = () => {
+    const g = gps.current; if (!g) return toast('Turn on your location first')
+    const [la, lo] = ll(g.x, g.y)
+    const url = location.origin + '/map?at=' + la.toFixed(5) + ',' + lo.toFixed(5) + '&to=shared-spot' + (here ? '&l=' + encodeURIComponent(here.n) : '')
+    shareLink({ title: 'Find me on Compass OOU', text: 'I am here' + (here ? ' (near ' + here.n + ')' : '') + '. Tap to see the spot and get directions:', url }, toast)
+  }
   const fromLabel = gps.current ? 'My location' + (here ? ' (' + here.n + ')' : '') : 'My location (test: School Park)'
 
   return (
@@ -186,6 +206,7 @@ export default function MapPage() {
           <button className="ib" onClick={() => eng.current && eng.current.zoomStep(1 / .6)} aria-label="Zoom out"><b style={{ fontSize: 22, lineHeight: 1 }}>−</b></button>
           {rot !== 0 && <button className="ib" onClick={() => eng.current && eng.current.resetNorth()} aria-label="Point north up"><svg width="26" height="26" viewBox="0 0 24 24" style={{ transform: `rotate(${rot}deg)` }}><path d="M12 2l4 10H8z" fill="#E5484D" /><path d="M12 22l-4-10h8z" fill="#9AA3BC" /></svg></button>}
           <button className="ib loc" onClick={locate} aria-label="Show where I am"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /></svg></button>
+          {gps.current && <button className="ib" onClick={shareMe} aria-label="Share my location with a friend"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.6l6.8-4.2M8.6 13.4l6.8 4.2" /></svg></button>}
         </div>
       )}
       <div id="mapui">
