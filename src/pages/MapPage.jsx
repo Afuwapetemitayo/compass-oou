@@ -195,7 +195,7 @@ export default function MapPage() {
     const url = location.origin + '/map?at=' + la.toFixed(5) + ',' + lo.toFixed(5) + '&to=shared-spot' + (here ? '&l=' + encodeURIComponent(here.n) : '')
     shareLink({ title: 'Find me on Compass OOU', text: 'I am here' + (here ? ' (near ' + here.n + ')' : '') + '. Tap to see the spot and get directions:', url }, toast)
   }
-  const fromLabel = gps.current ? 'My location' + (here ? ' (' + here.n + ')' : '') : 'My location (test: School Park)'
+  const fromLabel = gps.current ? 'My location' + (here ? ' (' + here.n + ')' : '') : 'School Park (turn on location to start from where you are)'
 
   return (
     <div id="mapbox" style={{ display: 'block' }}>

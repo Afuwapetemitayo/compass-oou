@@ -61,7 +61,7 @@ export class MapEngine {
     const th = this.rot * Math.PI / 180, c0 = Math.cos(th), s0 = Math.sin(th)
     const ax = (pm.x - r.left - r.width / 2) * sc, ay = (pm.y - r.top - r.height / 2) * sc
     const Wx = x + w / 2 + ax * c0 + ay * s0, Wy = y + h / 2 - ax * s0 + ay * c0
-    const nsc = Math.min(3, Math.max(.07, sc / ratio)), k = nsc / sc
+    const nsc = Math.min(14, Math.max(.07, sc / ratio)), k = nsc / sc
     this.rot = ((this.rot + dAng) % 360 + 360) % 360
     const t2 = this.rot * Math.PI / 180, c1 = Math.cos(t2), s1 = Math.sin(t2)
     const bx = (nm.x - r.left - r.width / 2) * nsc, by = (nm.y - r.top - r.height / 2) * nsc
