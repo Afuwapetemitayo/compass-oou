@@ -4,7 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useApp } from '../state'
 import { ll, onCampus, distKm } from '../lib/geo'
-import { slugify } from '../lib/places'
+import { slugify, slugOf } from '../lib/places'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
 import { isEntry } from './Arrive'
@@ -22,7 +22,7 @@ export default function GettingHere() {
   const { places, gps, toast } = useApp()
   const ways = useMemo(() => places.filter(p => p.x != null && isEntry(p)), [places])
   const [slug, setSlug] = useState(q.get('to') || 'school-park')
-  const dest = useMemo(() => ways.find(p => slugify(p.n) === slug) || places.find(p => slugify(p.n) === slug && p.x != null) || ways[0], [ways, places, slug])
+  const dest = useMemo(() => ways.find(p => slugOf(p) === slug || slugify(p.n) === slug) || places.find(p => (slugOf(p) === slug || slugify(p.n) === slug) && p.x != null) || ways[0], [ways, places, slug])
   const [fix, setFix] = useState(null)            // { la, lo }
   const [err, setErr] = useState('')
   const [route, setRoute] = useState(null)        // { coords, dist, dur }
@@ -67,10 +67,10 @@ export default function GettingHere() {
 
   // arrived on campus: hand over to the campus map
   useEffect(() => {
-    if (fix && onCampus(fix.la, fix.lo) && dest) { toast('You are on campus. Switching to the campus map'); nav('/map?to=' + slugify(dest.n), { replace: true }) }
+    if (fix && onCampus(fix.la, fix.lo) && dest) { toast('You are on campus. Switching to the campus map'); nav('/map?to=' + slugOf(dest), { replace: true }) }
     // eslint-disable-next-line
   }, [fix])
-  useEffect(() => { if (gps.current && dest) nav('/map?to=' + slugify(dest.n), { replace: true }) /* eslint-disable-next-line */ }, [])
+  useEffect(() => { if (gps.current && dest) nav('/map?to=' + slugOf(dest), { replace: true }) /* eslint-disable-next-line */ }, [])
 
   // you-are-here dot + follow
   useEffect(() => {
@@ -120,7 +120,7 @@ export default function GettingHere() {
         {ways.length > 1 && (
           <div className="mrow" style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '6px 10px' }}>
             <label htmlFor="gh-to">Drop me at</label>
-            <select id="gh-to" value={dest ? slugify(dest.n) : ''} onChange={e => setSlug(e.target.value)} style={{ height: 40, border: 0, background: 'transparent', fontWeight: 600, width: '100%' }}>{ways.map(p => <option key={p.n} value={slugify(p.n)}>{p.n} · {p.t}</option>)}</select>
+            <select id="gh-to" value={dest ? slugOf(dest) : ''} onChange={e => setSlug(e.target.value)} style={{ height: 40, border: 0, background: 'transparent', fontWeight: 600, width: '100%' }}>{ways.map(p => <option key={p.n} value={slugOf(p)}>{p.n} · {p.t}</option>)}</select>
           </div>
         )}
         <div className="gh-map"><div ref={mapEl} style={{ position: 'absolute', inset: 0 }} />

@@ -127,6 +127,10 @@ const local = {
   async google() { ls.set('pending', { full_name: 'Adebayo Tolu', faculty: '', department: '', level: '' }); ls.set('user', { id: 'local', name: 'Adebayo Tolu', email: 'adebayo.tolu@gmail.com', fac: '', dep: '', lv: '', role: 'student' }); window.location.assign('/') },
   async signOut() { ls.del('user') },
   async loadProfile() { return ls.get('user', null) },
+  async deletePlace(id) {
+    const { error } = await supabase.from('places').delete().eq('id', id)
+    if (error) throw error
+  },
   async saveProfile(_uid, { name, fac, dep, lv }) { const u = ls.get('user', {}); ls.set('user', { ...u, name, fac, dep, lv }) },
   async touch() {},
   async listPlaces() {
@@ -147,6 +151,7 @@ const local = {
     }
     if (photoData) { const ph = ls.get('photos', {}); ph[p.n] = photoData; ls.set('photos', ph) }
   },
+  async deletePlace() { throw new Error('Deleting places works once the database is connected') },
   async listPins() { return ls.get('pins', []) },
   async setPin(_u, name, on) { const pn = ls.get('pins', []).filter(n => n !== name); if (on) pn.unshift(name); ls.set('pins', pn) },
   async logEvent() {},

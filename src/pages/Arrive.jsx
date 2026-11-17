@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state'
 import { backend } from '../lib/backend'
 import { ll } from '../lib/geo'
-import { slugify } from '../lib/places'
+import { slugOf } from '../lib/places'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
 
@@ -49,8 +49,8 @@ export default function Arrive() {
               <div key={p.n} className="li" style={{ display: 'grid', gap: 8, padding: 12 }}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="ic"><Icon n="pin" /></span><span className="t"><b>{p.n}</b><span>{p.t}{p.note ? ' · ' + p.note : ''}</span></span></div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugify(p.n))}><Icon n="nav" s={18} /> Show me the way</button>
-                  <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/map?to=' + slugify(p.n))}>See it on campus</button>
+                  <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugOf(p))}><Icon n="nav" s={18} /> Show me the way</button>
+                  <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/map?to=' + slugOf(p))}>See it on campus</button>
                 </div>
               </div>
             ))}

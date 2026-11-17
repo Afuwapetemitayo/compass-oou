@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '../state'
 import { shareLink } from '../lib/share'
-import { CATS, sub, slugify } from '../lib/places'
+import { CATS, sub, slugOf } from '../lib/places'
 import { FACS } from '../lib/places'
 import Icon, { catIcon } from '../components/Icon'
 import { Badge, PlaceRow, View, Sheet, initials } from '../components/ui'
@@ -10,8 +10,8 @@ import ReportSheet from '../components/ReportSheet'
 import { useInstall } from '../lib/install'
 import { indexPlaces, searchPlaces, ideas } from '../lib/search'
 
-export const placePath = p => '/place/' + slugify(p.n)
-const mapPath = p => '/map?to=' + slugify(p.n)
+export const placePath = p => '/place/' + slugOf(p)
+const mapPath = p => '/map?to=' + slugOf(p)
 
 /* ------------------------------- Home ------------------------------- */
 export function Home() {

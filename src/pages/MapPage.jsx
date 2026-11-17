@@ -4,7 +4,7 @@ import { useApp } from '../state'
 import { MapEngine, PAL } from '../lib/mapEngine'
 import { MODES, mins, project, route, snap, snapRoad } from '../lib/routing'
 import { askLocation, onCampus, xy, ll, distKm } from '../lib/geo'
-import { slugify, areaOf } from '../lib/places'
+import { slugify, slugOf, areaOf } from '../lib/places'
 import Icon from '../components/Icon'
 import { shareLink } from '../lib/share'
 import { Sheet } from '../components/ui'
@@ -31,7 +31,7 @@ export default function MapPage() {
   const byIdx = i => places[i]
 
   const toSlug = q.get('to')
-  const initTo = toSlug ? places.findIndex(p => slugify(p.n) === toSlug) : -1
+  const initTo = toSlug ? places.findIndex(p => slugOf(p) === toSlug || slugify(p.n) === toSlug) : -1
   const [to, setTo] = useState(initTo >= 0 ? initTo : null)
   const toRef = useRef(null)
   const [cat, setCat] = useState('All')                 // which kind of place to show
@@ -239,7 +239,7 @@ export default function MapPage() {
         ) : (
           <div className="msheet" id="msheet">
             <button className="info" onClick={() => setSheet('credits')} aria-label="Map credits">i</button>
-            {here && !navState && <button className="herepill" onClick={() => nav('/place/' + slugify(here.n))}><i /> You are at {here.n}</button>}
+            {here && !navState && <button className="herepill" onClick={() => nav('/place/' + slugOf(here))}><i /> You are at {here.n}</button>}
             {outside && !navState && !(dest && dest === origin) && (() => {
               const gate = places.find(p => p.n === 'School Park' && p.x != null) || places.find(p => /gate/i.test(p.n) && p.x != null)
               if (!gate) return null
@@ -249,7 +249,7 @@ export default function MapPage() {
                   <b style={{ fontSize: 15 }}>{km < 1 ? 'You are very close to the school' : 'You are about ' + (km < 10 ? km.toFixed(1) : Math.round(km)) + ' km from OOU'}</b>
                   <span className="mut" style={{ fontSize: 13 }}>Get to {gate.n} first. We will draw the road for you, then switch to the campus map when you arrive.</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugify(gate.n))}><Icon n="nav" s={18} /> Show me the way</button>
+                    <button className="btn gold" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/getting-here?to=' + slugOf(gate))}><Icon n="nav" s={18} /> Show me the way</button>
                     <button className="btn line" style={{ flex: 1, minHeight: 44, fontSize: 14 }} onClick={() => nav('/arrive')}>How to get in</button>
                   </div>
                 </div>
@@ -272,7 +272,7 @@ export default function MapPage() {
                 <div style={{ display: 'grid', gap: 8 }}>
                   <b style={{ fontSize: 17 }}>Going to {dest.n}?</b>
                   <p className="mut" style={{ lineHeight: 1.45 }}>{dest.n} is where you get dropped at the school. We cannot see you on campus, so let us show you the road from where you are.</p>
-                  <button className="btn gold block" onClick={() => nav('/getting-here?to=' + slugify(dest.n))}><Icon n="nav" s={18} /> Show me the way</button>
+                  <button className="btn gold block" onClick={() => nav('/getting-here?to=' + slugOf(dest))}><Icon n="nav" s={18} /> Show me the way</button>
                   <p className="demo" style={{ textAlign: 'left' }}>Already inside the school? Pick a different start in the From box.</p>
                 </div>
               ) : peek != null && places[peek] && !dest ? (
@@ -283,7 +283,7 @@ export default function MapPage() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="btn gold" style={{ flex: 1, minHeight: 48 }} onClick={() => { const i = peek; setPeek(null); setTo(i) }}><Icon n="nav" s={18} /> Directions</button>
-                    <button className="btn line" style={{ flex: 1, minHeight: 48 }} onClick={() => nav('/place/' + slugify(places[peek].n))}>Details</button>
+                    <button className="btn line" style={{ flex: 1, minHeight: 48 }} onClick={() => nav('/place/' + slugOf(places[peek]))}>Details</button>
                   </div>
                 </div>
               ) : <div><b>{dest && dest === origin ? 'Pick a different start or destination' : 'Tap a pin or a building'}</b><p className="mut" style={{ marginTop: 4 }}>{located.length} places are on the map. Coloured buildings are places. Hollow pins are not checked on site yet. Use the buttons above to show one kind of place.</p></div>
@@ -297,7 +297,7 @@ export default function MapPage() {
           <h2>Go to {places[pick].n}?</h2>
           <p className="mut" style={{ lineHeight: 1.45 }}>{places[pick].inherit ? 'Inside ' + places[pick].inherit : (places[pick].c === 'Departments' ? 'Faculty of ' + places[pick].f : places[pick].t)}. You are now heading to {dest ? dest.n : 'another place'}.</p>
           <button className="btn blue block" onClick={() => { const i = pick; setPick(null); setTo(i) }}>Yes, take me to {places[pick].n}</button>
-          <button className="btn line block" onClick={() => { const sl = slugify(places[pick].n); setPick(null); nav('/place/' + sl) }}>See details</button>
+          <button className="btn line block" onClick={() => { const sl = slugOf(places[pick]); setPick(null); nav('/place/' + sl) }}>See details</button>
           <button className="btn line block" onClick={() => setPick(null)}>Keep going to {dest ? dest.n : 'where I was going'}</button>
         </Sheet>
       )}

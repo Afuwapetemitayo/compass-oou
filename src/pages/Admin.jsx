@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useApp } from '../state'
 import { backend, hasSupabase } from '../lib/backend'
-import { CATS, areaOf } from '../lib/places'
+import { CATS, FACS, areaOf } from '../lib/places'
 import { ll, xy, inOOUBounds, distKm } from '../lib/geo'
 import Icon from '../components/Icon'
 import { View } from '../components/ui'
@@ -151,7 +151,10 @@ function PlaceForm({ place: p, onDone }) {
   const { places, reloadPlaces, toast } = useApp()
   const [la0, lo0] = p && p.x != null && !p.inherit ? ll(p.x, p.y) : ['', '']
   const [name, setName] = useState(p ? p.n : '')
-  const [cat, setCat] = useState('Buildings')
+  const [cat, setCat] = useState(p ? p.c : 'Buildings')
+  const [fac, setFac] = useState(p ? p.f || '' : '')
+  const [alias, setAlias] = useState(p ? p.a || '' : '')
+  const [clearLoc, setClearLoc] = useState(false)
   const [lat, setLat] = useState(la0 === '' ? '' : la0.toFixed(6))
   const [lng, setLng] = useState(lo0 === '' ? '' : lo0.toFixed(6))
   const [note, setNote] = useState(p ? p.note || '' : '')
@@ -195,18 +198,19 @@ function PlaceForm({ place: p, onDone }) {
   const save = async () => {
     const la = parseFloat(lat), lo = parseFloat(lng)
     const hasCoords = !isNaN(la) && !isNaN(lo)
-    if (!p) {
-      if (!name.trim()) return toast('Enter a name')
-      if (places.some(x => x.n.toLowerCase() === name.trim().toLowerCase())) return toast('That name already exists')
-    }
+    if (!name.trim()) return toast('Enter a name')
+    if (places.some(x => x !== p && x.n.toLowerCase() === name.trim().toLowerCase())) return toast('That name already exists')
     if (hasCoords && !inOOUBounds(la, lo)) return toast('Those coordinates are outside OOU')
     setBusy(true)
     try {
       const np = p ? { ...p, ...(p.inherit ? { x: null, y: null, v: 0 } : {}) } : { n: name.trim(), c: cat, t: cat.replace(/ies$/, 'y').replace(/s$/, ''), f: '', a: '', k: 0, x: null, y: null, v: 0, id: null }
+      if (clearLoc && !hasCoords) { np.x = null; np.y = null; np.v = 0 }
       if (hasCoords) {
         const [x, y] = xy(la, lo)
         if (np.x == null || Math.hypot(np.x - x, np.y - y) > .5) { np.x = x; np.y = y; np.v = 1 }
       }
+      np.n = name.trim(); np.f = fac; np.a = alias.split(',').map(x => x.trim()).filter(Boolean).join(', ')
+      if (p && cat !== p.c) { np.c = cat; if (!tlabel.trim() || tlabel.trim() === p.t) np.t = cat.replace(/ies$/, 'y').replace(/s$/, '') }
       np.note = note.trim(); np.h = hist.trim(); if (tlabel.trim()) np.t = tlabel.trim()
       const rn = parseInt(rad); np.r = rad.trim() === '' ? 0 : (isNaN(rn) || rn < 5 || rn > 500 ? null : rn)
       if (np.r === null) { setBusy(false); return toast('Area size must be between 5 and 500 metres') }
@@ -221,14 +225,18 @@ function PlaceForm({ place: p, onDone }) {
   return (
     <div className="card" style={{ display: 'grid', gap: 12 }}>
       <h3>{p ? 'Edit place' : 'Add a place'}</h3>
-      <div className="field"><label htmlFor="p-name">Name</label><input className="inp" id="p-name" value={name} onChange={e => setName(e.target.value)} disabled={!!p} placeholder="e.g. Faculty of Law" /></div>
-      {!p && <div className="field"><label htmlFor="p-cat">Type</label><select className="inp" id="p-cat" value={cat} onChange={e => setCat(e.target.value)}>{CATS.slice(1).map(c => <option key={c}>{c}</option>)}</select></div>}
+      <div className="field"><label htmlFor="p-name">Name</label><input className="inp" id="p-name" value={name} onChange={e => setName(e.target.value)} disabled={!!p && !hasSupabase} placeholder="e.g. Faculty of Law" />{p && hasSupabase && <span className="mut" style={{ fontSize: 12 }}>Fixing a spelling is safe. Old links, QR codes and pins keep working. Search nicknames built into the app follow the old name, so add the short names below if you rename.</span>}{p && !hasSupabase && <span className="mut" style={{ fontSize: 12 }}>Renaming works once the database is connected.</span>}</div>
+      <div className="field"><label htmlFor="p-cat">Type</label><select className="inp" id="p-cat" value={cat} onChange={e => setCat(e.target.value)} disabled={!!p && !hasSupabase}>{CATS.slice(1).map(c => <option key={c}>{c}</option>)}</select></div>
+      <div className="field"><label htmlFor="p-fac">Faculty (optional)</label><select className="inp" id="p-fac" value={fac} onChange={e => setFac(e.target.value)} disabled={!!p && !hasSupabase}><option value="">None</option>{FACS.map(x => <option key={x}>{x}</option>)}</select><span className="mut" style={{ fontSize: 12 }}>For departments, this puts the place under that faculty.</span></div>
+      <div className="field"><label htmlFor="p-al">Other names students use (separate with commas)</label><input className="inp" id="p-al" value={alias} onChange={e => setAlias(e.target.value)} disabled={!!p && !hasSupabase} placeholder="e.g. FOS, science faculty" /><span className="mut" style={{ fontSize: 12 }}>Search finds the place by any of these names.</span></div>
       <div className="field"><label htmlFor="p-tl">Label (optional)</label><input className="inp" id="p-tl" value={tlabel} onChange={e => setTlabel(e.target.value)} placeholder="e.g. Main gate, Bus stop, Drop-off point" /><span className="mut" style={{ fontSize: 12 }}>Places labelled gate, park, drop-off or bus stop appear under Get into the school in Coming to OOU.</span></div>
       <div className="row2">
-        <div className="field"><label htmlFor="p-lat">Latitude</label><input className="inp" id="p-lat" inputMode="decimal" value={lat} onChange={e => setLat(e.target.value)} placeholder="6.926624" /></div>
+        <div className="field"><label htmlFor="p-lat">Latitude</label><input className="inp" id="p-lat" inputMode="decimal" value={lat} onChange={e => { setLat(e.target.value); setClearLoc(false) }} placeholder="6.926624" /></div>
         <div className="field"><label htmlFor="p-lng">Longitude</label><input className="inp" id="p-lng" inputMode="decimal" value={lng} onChange={e => setLng(e.target.value)} placeholder="3.868849" /></div>
       </div>
       <div className="field"><label htmlFor="p-rad">Area size in metres (optional)</label><input className="inp" id="p-rad" inputMode="numeric" value={rad} onChange={e => setRad(e.target.value)} placeholder={'Default: ' + areaOf(p || { c: cat }) + ' m'} /><span className="mut" style={{ fontSize: 12 }}>How far from the pin still counts as being at this place. A big faculty may need 80 to 100. Standing inside this circle, the app says "You are at …".</span></div>
+      {p && p.x != null && !p.inherit && <button className="btn line block" style={{ minHeight: 44 }} onClick={() => { setLat(''); setLng(''); setClearLoc(true) }}>Remove this location (GPS was wrong)</button>}
+      {clearLoc && <p className="demo" style={{ textAlign: 'left', marginTop: -4 }}>The location will be removed when you save. You can also type or capture a new one before saving.</p>}
       <button className="btn line block" style={{ minHeight: 48 }} onClick={useMyLocation} disabled={locating}><Icon n="pin" s={18} /> {locating ? 'Getting your position…' : 'Use my current location'}</button>
       {acc != null && <p className="demo" style={{ textAlign: 'left', marginTop: -4, color: acc > 20 ? '#7A5200' : 'var(--mintInk)' }}>{acc > 20 ? `Weak signal (±${acc} m). Move to open sky and tap again.` : `Position taken, accurate to about ${acc} m.`}</p>}
       <div className="field"><label htmlFor="p-note">Good to know</label><textarea className="inp" id="p-note" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Second floor, turn left" /></div>
@@ -240,6 +248,11 @@ function PlaceForm({ place: p, onDone }) {
       </div>
       <button className="btn gold block" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save place'}</button>
       <p className="demo">Saving makes the place live right away. No review step.</p>
+      {p && p.id && hasSupabase && <button className="btn line block" style={{ color: '#B42318', borderColor: '#F0C4C0' }} disabled={busy} onClick={async () => {
+        if (!window.confirm('Delete "' + p.n + '"? Students will no longer find it. This cannot be undone.')) return
+        setBusy(true)
+        try { await backend.deletePlace(p.id); await reloadPlaces(); toast('Deleted ' + p.n); onDone() } catch (e) { toast((e && e.message) || 'Could not delete'); setBusy(false) }
+      }}>Delete this place</button>}
     </div>
   )
 }

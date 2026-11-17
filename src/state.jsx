@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { backend, hasSupabase, localStore } from './lib/backend'
-import { slugify } from './lib/places'
+import { slugify, slugOf } from './lib/places'
 import { vid } from './lib/track'
 
 const Ctx = createContext(null)
@@ -92,7 +92,7 @@ export function AppProvider({ children }) {
   const signOut = useCallback(async () => { await backend.signOut(); setSession(null); setProfile(null); setPlaces([]); setPinKeys([]) }, [])
 
   const pins = useMemo(() => pinKeys.map(k => places.find(p => pk(p) === k)).filter(Boolean), [pinKeys, places])
-  const bySlug = useCallback(s => places.find(p => slugify(p.n) === s), [places])
+  const bySlug = useCallback(s => places.find(p => slugOf(p) === s || slugify(p.n) === s), [places])
 
   const value = { session, profile, places, pins, ready, toastMsg, toast, gps, asked, log, saveProfile, togglePin, signOut, reloadPlaces, refreshSession, reloadProfile, bySlug, hasSupabase, isAdmin: hasSupabase ? !!(profile && profile.role === 'admin') : !!profile }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

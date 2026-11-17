@@ -23,7 +23,7 @@ export const NICKNAMES = {
   'Department of Zoology and Environmental Biology': ['ZOO', 'zoology'],
   'Department of Mass Communication': ['MAC', 'mass comm', 'masscomm', 'MCM'],
   'Department of Economics': ['ECO', 'econs'],
-  'Department of Foreign Languages': ['language lab', 'languages', 'FLA'],
+  'Department of Foreign Languages': ['languages', 'FLA'],
   'Department of Linguistics and Nigerian Languages': ['LNL', 'linguistics'],
   'Department of Library and Information Science': ['LIS', 'library science'],
   'Department of Political Science': ['POS', 'polsci', 'political'],

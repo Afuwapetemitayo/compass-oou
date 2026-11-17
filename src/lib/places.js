@@ -9,6 +9,8 @@ export const CATS = ['All', 'Faculties', 'Departments', 'Offices', 'Halls', 'Lib
 const AREA = { Faculties: 70, Library: 50, Facilities: 40, Departments: 35, Halls: 30, Buildings: 30, Offices: 25 }
 export const areaOf = p => p.r || AREA[p.c] || 30
 export const slugify = n => n.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+// Links use the slug saved when the place was created, so renaming a place never breaks old links and QR codes.
+export const slugOf = p => p.slug || slugify(p.n)
 
 // v: 0 = no location, 1 = checked on site (GPS), 2 = taken from OpenStreetMap, not checked yet
 function finish(list) {
