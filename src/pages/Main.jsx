@@ -8,6 +8,7 @@ import Icon, { catIcon } from '../components/Icon'
 import { Badge, PlaceRow, View, Sheet, initials } from '../components/ui'
 import ReportSheet from '../components/ReportSheet'
 import { useInstall } from '../lib/install'
+import { indexPlaces, searchPlaces, ideas } from '../lib/search'
 
 export const placePath = p => '/place/' + slugify(p.n)
 const mapPath = p => '/map?to=' + slugify(p.n)
@@ -102,7 +103,11 @@ export function Directory() {
   const [fac, setFac] = useState('')
   const pinned = pins.map(p => p.n)
   const ql = q.trim().toLowerCase()
-  const list = useMemo(() => places.filter(p => (cat === 'All' || p.c === cat) && (!fac || p.f === fac) && (!ql || (p.n + ' ' + p.t + ' ' + p.f + ' ' + p.a).toLowerCase().includes(ql))), [places, cat, fac, ql])
+  const index = useMemo(() => indexPlaces(places), [places])
+  const [miss, setMiss] = useState(false)
+  const found = useMemo(() => searchPlaces(index, ql, p => (cat === 'All' || p.c === cat) && (!fac || p.f === fac)), [index, cat, fac, ql])
+  const list = found.results
+  const tips = useMemo(() => ideas(index), [index])
   useEffect(() => { // count a search once the person stops typing
     if (ql.length < 2) return
     const t = setTimeout(() => log({ type: 'search', query: ql, results: list.length }), 1200)
@@ -117,7 +122,7 @@ export function Directory() {
         <label className="search" htmlFor="dq"><Icon n="search" /><input id="dq" value={q} onChange={e => setQ(e.target.value)} placeholder="Search faculty, department, hall, office" autoComplete="off" /></label>
         <div className="chips">{CATS.map(c => <button key={c} className="chip" aria-pressed={cat === c} onClick={() => { setCat(c); setFac('') }}>{c} · {count(c)}</button>)}</div>
         {cat === 'Departments' && <div className="chips">{['', ...FACS].map(f => <button key={f} className="chip g" aria-pressed={fac === f} onClick={() => setFac(f)}>{f || 'All faculties'}</button>)}</div>}
-        <div className="mut" style={{ fontSize: 13 }}>{list.length} {list.length === 1 ? 'place' : 'places'}</div>
+        <div className="mut" style={{ fontSize: 13 }}>{found.fuzzy ? 'Did you mean one of these?' : list.length + (list.length === 1 ? ' place' : ' places')}</div>
         <div className="list">
           {list.length ? list.map(p => (
             <div key={p.n} className="li" style={{ padding: 0 }}>
@@ -128,8 +133,17 @@ export function Directory() {
               </button>
               {p.c === 'Departments' && <button className="ib" style={{ marginRight: 10, borderRadius: 12, ...(pinned.includes(p.n) ? { background: 'var(--gold)', color: '#0A1B4D', borderColor: 'var(--gold)' } : {}) }} onClick={() => togglePin(p)} aria-label={'Pin ' + p.n}><Icon n="star" /></button>}
             </div>
-          )) : <div className="li"><span className="t"><b>No match</b><span>Try another word, like FOS or ICT.</span></span></div>}
+          )) : (
+            <div className="card" style={{ display: 'grid', gap: 10 }}>
+              <b>We could not find "{q.trim()}"</b>
+              <span className="mut" style={{ lineHeight: 1.45 }}>Try the full name, a short name like FOS or ICT, or part of the name. If you are looking for a place and it is not here, tell us and we will add it.</span>
+              {cat !== 'All' && <button className="btn line" style={{ minHeight: 44 }} onClick={() => { setCat('All'); setFac('') }}>Search in all places</button>}
+              <div className="chips">{tips.map(t => <button key={t.n} className="chip" onClick={() => setQ(t.n)}>{t.n}</button>)}</div>
+              <button className="btn blue" style={{ minHeight: 44 }} onClick={() => setMiss(true)}>Tell us what you are looking for</button>
+            </div>
+          )}
         </div>
+        {miss && <ReportSheet prefill={'Missing place: ' + q.trim()} onClose={() => setMiss(false)} />}
       </div>
     </View>
   )

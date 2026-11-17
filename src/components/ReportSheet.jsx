@@ -5,10 +5,10 @@ import { useApp } from '../state'
 import { Sheet } from './ui'
 
 // "Report a problem" box. Pass a place to attach it to that place.
-export default function ReportSheet({ place, onClose }) {
+export default function ReportSheet({ place, prefill, onClose }) {
   const { session, toast } = useApp()
   const { pathname } = useLocation()
-  const [msg, setMsg] = useState('')
+  const [msg, setMsg] = useState(prefill || '')
   const [busy, setBusy] = useState(false)
   const send = async () => {
     if (!session) return toast('Create a free account to send a report')
